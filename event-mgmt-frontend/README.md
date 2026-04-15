@@ -20,11 +20,18 @@ Open `http://localhost:4200`
 
 ## ✅ Features
 
-### User Features
+### Event Management
 - **Login**: JWT authentication with demo mode
 - **Preferences**: Select event categories (Cat 1, Cat 2, Cat 3)
 - **Calendar**: View filtered time slots based on preferences
 - **Booking**: Book and cancel slots with real-time updates
+
+### Street View Camera Troubleshooting (NEW)
+- **AI Assistant**: Conversational troubleshooting interface
+- **Real-time Monitoring**: Camera status, battery, GPS, temperature
+- **Step-by-Step Guidance**: Progressive troubleshooting workflows
+- **Issue Categories**: Connection, image quality, GPS, hardware
+- **Quick Actions**: Full diagnostics, restart, logs, reports
 
 ### Admin Features
 - **Slot Management**: Add, update, delete time slots

@@ -25,6 +25,7 @@ import { User } from './models';
       <span class="spacer"></span>
       <button mat-button routerLink="/calendar">Calendar</button>
       <button mat-button routerLink="/preferences">Preferences</button>
+      <button mat-button routerLink="/troubleshoot">Troubleshoot</button>
       <button mat-button routerLink="/admin" *ngIf="currentUser?.is_admin">Admin</button>
       <button mat-button [matMenuTriggerFor]="userMenu">
         <mat-icon>account_circle</mat-icon>
