@@ -22,7 +22,7 @@ import { User } from './models';
   ],
   template: `
     <mat-toolbar color="primary" *ngIf="currentUser">
-      <span>Event Management</span>
+      <span>Techwiz AI Assistant</span>
       <span class="spacer"></span>
       <button mat-button routerLink="/calendar">Calendar</button>
       <button mat-button routerLink="/preferences">Preferences</button>

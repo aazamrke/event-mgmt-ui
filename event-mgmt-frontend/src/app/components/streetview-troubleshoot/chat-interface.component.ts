@@ -50,6 +50,13 @@ import { VoiceService, VoiceState } from './services/voice.service';
       </mat-card-header>
 
       <mat-card-content>
+        <!-- Linux/Ubuntu voice warning -->
+        <div class="voice-warning" *ngIf="showLinuxWarning">
+          <mat-icon>info</mat-icon>
+          <span>On Linux, voice recognition requires <strong>Google Chrome</strong> and microphone permission. <a href="https://support.google.com/chrome/answer/2693767" target="_blank">How to allow mic</a></span>
+          <button mat-icon-button (click)="dismissLinuxWarning()"><mat-icon>close</mat-icon></button>
+        </div>
+
         <!-- Voice listening overlay -->
         <div class="voice-overlay" *ngIf="voiceState === 'listening' || voiceState === 'processing'">
           <div class="waveform">
@@ -297,6 +304,15 @@ import { VoiceService, VoiceState } from './services/voice.service';
     .chat-input { flex: 1; }
     .mic-btn { transition: transform 0.2s; }
     .mic-btn.listening { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(244,67,54,0.2); }
+    .voice-warning {
+      display: flex; align-items: center; gap: 8px;
+      background: #fff8e1; border-left: 4px solid #ff9800;
+      padding: 10px 12px; border-radius: 4px; margin-bottom: 8px;
+      font-size: 13px; color: #5d4037;
+    }
+    .voice-warning mat-icon { color: #ff9800; flex-shrink: 0; }
+    .voice-warning a { color: #1976d2; }
+    .voice-warning button { margin-left: auto; }
   `]
 })
 export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestroy {
@@ -310,6 +326,8 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
   liveTranscript = '';
   ttsEnabled = true;
   voiceSupported = false;
+  voiceError = '';
+  showLinuxWarning = false;
   waveformBars = Array(10);
 
   private shouldScroll = false;
@@ -323,7 +341,6 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
     this.subs.add(
       this.voiceService.state$.subscribe(state => {
         this.voiceState = state;
-        // When processing is done, send the transcript
         if (state === 'processing' && this.liveTranscript.trim()) {
           this.userInput = this.liveTranscript;
           this.liveTranscript = '';
@@ -337,6 +354,27 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
         this.liveTranscript = t;
       })
     );
+
+    // Show voice errors via snackbar
+    this.subs.add(
+      this.voiceService.error$.subscribe(err => {
+        if (err) {
+          this.voiceError = err;
+          this.snackBar.open(err, 'Close', { duration: 6000, panelClass: 'error-snack' });
+        }
+      })
+    );
+
+    // Show OS-specific hint if on Linux
+    const caps = this.voiceService.capabilities;
+    if (caps.os === 'Linux') {
+      this.showLinuxWarning = true;
+      console.info('Voice on Linux: ensure Chrome is used and microphone is permitted.');
+    }
+  }
+
+  dismissLinuxWarning(): void {
+    this.showLinuxWarning = false;
   }
 
   ngAfterViewChecked(): void {
@@ -353,14 +391,28 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
   }
 
   get voiceTooltip(): string {
-    if (!this.voiceSupported) return 'Voice not supported in this browser';
-    if (this.voiceState === 'listening') return 'Stop listening';
-    return 'Start voice input';
+    const caps = this.voiceService.capabilities;
+    if (!this.voiceSupported) {
+      return caps.os === 'Linux'
+        ? 'Voice requires Google Chrome on Linux. Firefox is not supported.'
+        : 'Voice recognition not supported. Use Chrome.';
+    }
+    if (!caps.isSecureContext) return 'Voice requires HTTPS or localhost';
+    if (this.voiceState === 'listening') return 'Stop listening (click to stop)';
+    return `Start voice input (${caps.browser} on ${caps.os})`;
   }
 
   toggleVoice(): void {
+    const caps = this.voiceService.capabilities;
     if (!this.voiceSupported) {
-      this.snackBar.open('Voice recognition is not supported in this browser', 'Close', { duration: 3000 });
+      const msg = caps.os === 'Linux'
+        ? 'Voice requires Google Chrome on Linux/Ubuntu. Firefox does not support Web Speech API.'
+        : 'Voice recognition not supported. Please use Google Chrome.';
+      this.snackBar.open(msg, 'Close', { duration: 5000 });
+      return;
+    }
+    if (!caps.isSecureContext) {
+      this.snackBar.open('Microphone requires HTTPS or localhost.', 'Close', { duration: 5000 });
       return;
     }
     if (this.voiceState === 'listening') {
