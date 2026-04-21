@@ -60,7 +60,10 @@ import { VoiceService, VoiceState } from './services/voice.service';
         <!-- Voice listening overlay -->
         <div class="voice-overlay" *ngIf="voiceState === 'listening' || voiceState === 'processing'">
           <div class="waveform">
-            <span *ngFor="let b of waveformBars" class="bar" [class.active]="voiceState === 'listening'"></span>
+            <span *ngFor="let b of waveformBars; let i = index"
+                  class="bar"
+                  [style.height.px]="voiceState === 'listening' ? getBarHeight(i) : 8"
+                  [class.active]="voiceState === 'listening'"></span>
           </div>
           <p class="voice-label" *ngIf="voiceState === 'listening'">
             Listening... <span class="transcript-preview">{{liveTranscript}}</span>
@@ -196,25 +199,10 @@ import { VoiceService, VoiceState } from './services/voice.service';
       background: #1976d2;
       border-radius: 3px;
       height: 8px;
-      transition: height 0.1s;
+      transition: height 0.08s ease;
     }
-    .bar:nth-child(1)  { animation: wave 1.0s ease-in-out infinite; }
-    .bar:nth-child(2)  { animation: wave 1.1s ease-in-out infinite; }
-    .bar:nth-child(3)  { animation: wave 0.9s ease-in-out infinite; }
-    .bar:nth-child(4)  { animation: wave 1.2s ease-in-out infinite; }
-    .bar:nth-child(5)  { animation: wave 0.8s ease-in-out infinite; }
-    .bar:nth-child(6)  { animation: wave 1.3s ease-in-out infinite; }
-    .bar:nth-child(7)  { animation: wave 0.9s ease-in-out infinite; }
-    .bar:nth-child(8)  { animation: wave 1.0s ease-in-out infinite; }
-    .bar:nth-child(9)  { animation: wave 1.1s ease-in-out infinite; }
-    .bar:nth-child(10) { animation: wave 0.8s ease-in-out infinite; }
-    .bar.active { animation-play-state: running; }
-    .bar:not(.active) { animation-play-state: paused; }
-
-    @keyframes wave {
-      0%, 100% { height: 8px; }
-      50% { height: 48px; }
-    }
+    .bar.active { background: #1976d2; }
+    .bar:not(.active) { background: #ccc; }
 
     .voice-label {
       font-size: 16px;
@@ -329,6 +317,7 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
   voiceError = '';
   showLinuxWarning = false;
   waveformBars = Array(10);
+  volume = 0;
 
   private shouldScroll = false;
   private subs = new Subscription();
@@ -352,6 +341,12 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
     this.subs.add(
       this.voiceService.transcript$.subscribe(t => {
         this.liveTranscript = t;
+      })
+    );
+
+    this.subs.add(
+      this.voiceService.volume$.subscribe(v => {
+        this.volume = v;
       })
     );
 
@@ -404,13 +399,6 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
 
   toggleVoice(): void {
     const caps = this.voiceService.capabilities;
-    if (!this.voiceSupported) {
-      const msg = caps.os === 'Linux'
-        ? 'Voice requires Google Chrome on Linux/Ubuntu. Firefox does not support Web Speech API.'
-        : 'Voice recognition not supported. Please use Google Chrome.';
-      this.snackBar.open(msg, 'Close', { duration: 5000 });
-      return;
-    }
     if (!caps.isSecureContext) {
       this.snackBar.open('Microphone requires HTTPS or localhost.', 'Close', { duration: 5000 });
       return;
@@ -418,7 +406,9 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
     if (this.voiceState === 'listening') {
       this.voiceService.stopListening();
     } else {
-      this.voiceService.startListening();
+      this.voiceService.startListening().catch(err => {
+        console.error('startListening error:', err);
+      });
     }
   }
 
@@ -451,6 +441,15 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
   onActionClick(action: string): void {
     this.actionClicked.emit(action);
     this.shouldScroll = true;
+  }
+
+  getBarHeight(index: number): number {
+    // Each bar gets a slightly different multiplier for a natural wave look
+    const multipliers = [0.4, 0.7, 1.0, 0.8, 1.2, 0.9, 1.1, 0.6, 0.8, 0.5];
+    const base = 8;
+    const max  = 48;
+    const height = base + (this.volume / 100) * (max - base) * multipliers[index];
+    return Math.min(max, Math.max(base, height));
   }
 
   private scrollToBottom(): void {

@@ -1,17 +1,11 @@
 import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatButtonModule } from '@angular/material/button';
-import { MatTableModule } from '@angular/material/table';
-import { MatIconModule } from '@angular/material/icon';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { ApiService } from '../../services/api.service';
 import { TimeSlot, Category } from '../../models';
 
@@ -19,153 +13,247 @@ import { TimeSlot, Category } from '../../models';
   selector: 'app-admin',
   standalone: true,
   imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatButtonModule,
-    MatTableModule,
-    MatIconModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatSnackBarModule,
-    MatDialogModule
+    CommonModule, ReactiveFormsModule,
+    MatDatepickerModule, MatNativeDateModule,
+    MatFormFieldModule, MatInputModule, MatSnackBarModule
   ],
   template: `
-    <div class="admin-container">
-      <h2>Admin Panel</h2>
-      
-      <!-- Add New Slot Form -->
-      <mat-card class="form-card">
-        <mat-card-header>
-          <mat-card-title>Add New Time Slot</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <form [formGroup]="slotForm" (ngSubmit)="onSubmit()">
-            <div class="form-row">
-              <mat-form-field appearance="outline">
-                <mat-label>Category</mat-label>
-                <mat-select formControlName="category_id" required>
-                  <mat-option *ngFor="let category of categories" [value]="category.id">
-                    {{category.name}}
-                  </mat-option>
-                </mat-select>
-                <mat-error *ngIf="slotForm.get('category_id')?.hasError('required')">
-                  Category is required
-                </mat-error>
-              </mat-form-field>
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Admin Panel</h1>
+          <p class="page-sub">Manage time slots for event categories</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><span class="stat-val">{{timeSlots.length}}</span><span class="stat-lbl">Total Slots</span></div>
+          <div class="stat"><span class="stat-val">{{categories.length}}</span><span class="stat-lbl">Categories</span></div>
+        </div>
+      </div>
 
-              <mat-form-field appearance="outline">
-                <mat-label>Date</mat-label>
-                <input matInput [matDatepicker]="picker" formControlName="date" required>
+      <div class="admin-layout">
+        <!-- Create form -->
+        <div class="form-panel">
+          <div class="panel-title">
+            <span class="material-icons">add_circle_outline</span>
+            Add New Time Slot
+          </div>
+
+          <form [formGroup]="slotForm" (ngSubmit)="onSubmit()" class="slot-form">
+            <div class="field-group">
+              <label>Category</label>
+              <select formControlName="category_id" class="dark-select">
+                <option value="" disabled>Select category</option>
+                <option *ngFor="let c of categories" [value]="c.id">{{c.name}}</option>
+              </select>
+              <span class="field-error" *ngIf="slotForm.get('category_id')?.invalid && slotForm.get('category_id')?.touched">Required</span>
+            </div>
+
+            <div class="field-group">
+              <label>Date</label>
+              <mat-form-field appearance="outline" class="date-field">
+                <input matInput [matDatepicker]="picker" formControlName="date" placeholder="Pick a date">
                 <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
                 <mat-datepicker #picker></mat-datepicker>
-                <mat-error *ngIf="slotForm.get('date')?.hasError('required')">
-                  Date is required
-                </mat-error>
               </mat-form-field>
             </div>
 
-            <div class="form-row">
-              <mat-form-field appearance="outline">
-                <mat-label>Start Time</mat-label>
-                <input matInput type="time" formControlName="start_time" required>
-                <mat-error *ngIf="slotForm.get('start_time')?.hasError('required')">
-                  Start time is required
-                </mat-error>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>End Time</mat-label>
-                <input matInput type="time" formControlName="end_time" required>
-                <mat-error *ngIf="slotForm.get('end_time')?.hasError('required')">
-                  End time is required
-                </mat-error>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Capacity</mat-label>
-                <input matInput type="number" formControlName="max_capacity" min="1" required>
-                <mat-error *ngIf="slotForm.get('max_capacity')?.hasError('required')">
-                  Capacity is required
-                </mat-error>
-              </mat-form-field>
+            <div class="time-row">
+              <div class="field-group">
+                <label>Start Time</label>
+                <div class="input-wrap">
+                  <span class="material-icons input-icon">schedule</span>
+                  <input type="time" formControlName="start_time">
+                </div>
+              </div>
+              <div class="field-group">
+                <label>End Time</label>
+                <div class="input-wrap">
+                  <span class="material-icons input-icon">schedule</span>
+                  <input type="time" formControlName="end_time">
+                </div>
+              </div>
             </div>
 
-            <button mat-raised-button color="primary" type="submit" 
-                    [disabled]="slotForm.invalid || loading">
+            <div class="field-group">
+              <label>Capacity</label>
+              <div class="input-wrap">
+                <span class="material-icons input-icon">people</span>
+                <input type="number" formControlName="max_capacity" min="1" placeholder="10">
+              </div>
+            </div>
+
+            <div class="overlap-warn" *ngIf="overlapError">
+              <span class="material-icons">warning</span>
+              Overlapping slot detected for this category and time range.
+            </div>
+
+            <button type="submit" class="submit-btn" [disabled]="slotForm.invalid || loading">
+              <span class="material-icons">add</span>
               {{loading ? 'Creating...' : 'Create Slot'}}
             </button>
           </form>
-        </mat-card-content>
-      </mat-card>
+        </div>
 
-      <!-- Existing Slots Table -->
-      <mat-card class="table-card">
-        <mat-card-header>
-          <mat-card-title>Existing Time Slots</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <table mat-table [dataSource]="timeSlots" class="slots-table">
-            <ng-container matColumnDef="category">
-              <th mat-header-cell *matHeaderCellDef>Category</th>
-              <td mat-cell *matCellDef="let slot">{{getCategoryName(slot.category_id)}}</td>
-            </ng-container>
+        <!-- Slots table -->
+        <div class="table-panel">
+          <div class="panel-title">
+            <span class="material-icons">table_rows</span>
+            Existing Slots
+            <span class="count-badge">{{timeSlots.length}}</span>
+          </div>
 
-            <ng-container matColumnDef="date">
-              <th mat-header-cell *matHeaderCellDef>Date</th>
-              <td mat-cell *matCellDef="let slot">{{formatDate(slot.start_time)}}</td>
-            </ng-container>
+          <div class="empty-state" *ngIf="timeSlots.length === 0">
+            <span class="material-icons">event_note</span>
+            <p>No slots created yet</p>
+          </div>
 
-            <ng-container matColumnDef="time">
-              <th mat-header-cell *matHeaderCellDef>Time</th>
-              <td mat-cell *matCellDef="let slot">
-                {{formatTime(slot.start_time)}} - {{formatTime(slot.end_time)}}
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="capacity">
-              <th mat-header-cell *matHeaderCellDef>Capacity</th>
-              <td mat-cell *matCellDef="let slot">{{slot.available_spots}} / {{slot.max_capacity}}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>Actions</th>
-              <td mat-cell *matCellDef="let slot">
-                <button mat-icon-button color="warn" (click)="deleteSlot(slot.id)">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          </table>
-        </mat-card-content>
-      </mat-card>
+          <div class="slots-table" *ngIf="timeSlots.length > 0">
+            <div class="table-head">
+              <span>Category</span>
+              <span>Date</span>
+              <span>Time</span>
+              <span>Capacity</span>
+              <span></span>
+            </div>
+            <div *ngFor="let slot of timeSlots" class="table-row">
+              <span class="cat-pill">{{getCategoryName(slot.category_id)}}</span>
+              <span class="cell-date">{{formatDate(slot.start_time)}}</span>
+              <span class="cell-time">{{formatTime(slot.start_time)}} – {{formatTime(slot.end_time)}}</span>
+              <span class="cell-cap">
+                <span class="cap-num">{{slot.available_spots}}</span>/{{slot.max_capacity}}
+              </span>
+              <button class="del-btn" (click)="deleteSlot(slot.id)">
+                <span class="material-icons">delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   `,
   styles: [`
-    .admin-container {
-      padding: 20px;
-      max-width: 1200px;
-      margin: 0 auto;
+    .page { padding: 28px 32px; height: 100%; overflow-y: auto; background: #0f1117; }
+
+    .page-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 28px;
     }
-    .form-card, .table-card {
-      margin-bottom: 24px;
+    .page-title { font-size: 26px; font-weight: 700; color: #f1f5f9; margin: 0 0 4px; }
+    .page-sub   { font-size: 14px; color: #64748b; margin: 0; }
+
+    .stats-row { display: flex; gap: 16px; }
+    .stat {
+      background: #1a1d27; border: 1px solid #2d3148;
+      border-radius: 10px; padding: 12px 20px; text-align: center;
     }
-    .form-row {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 16px;
+    .stat-val { display: block; font-size: 22px; font-weight: 700; color: #818cf8; }
+    .stat-lbl { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .admin-layout { display: grid; grid-template-columns: 360px 1fr; gap: 20px; }
+
+    .form-panel, .table-panel {
+      background: #1a1d27; border: 1px solid #2d3148;
+      border-radius: 12px; padding: 20px;
     }
-    .form-row mat-form-field {
-      flex: 1;
+    .panel-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 15px; font-weight: 600; color: #94a3b8;
+      margin-bottom: 20px;
     }
-    .slots-table {
-      width: 100%;
+    .panel-title .material-icons { color: #6366f1; font-size: 20px; }
+    .count-badge {
+      margin-left: auto; background: #2d3148; color: #64748b;
+      border-radius: 10px; padding: 2px 10px; font-size: 12px;
+    }
+
+    .slot-form { display: flex; flex-direction: column; gap: 16px; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; }
+    label { font-size: 12px; font-weight: 500; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .dark-select {
+      background: #0f1117; border: 1px solid #2d3148;
+      border-radius: 8px; padding: 10px 12px;
+      color: #e2e8f0; font-size: 14px; outline: none;
+      cursor: pointer; transition: border-color 0.15s; width: 100%;
+    }
+    .dark-select:focus { border-color: #6366f1; }
+
+    .date-field { width: 100%; }
+    ::ng-deep .date-field .mat-mdc-text-field-wrapper { background: #0f1117 !important; }
+
+    .time-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .input-wrap {
+      display: flex; align-items: center;
+      background: #0f1117; border: 1px solid #2d3148;
+      border-radius: 8px; overflow: hidden; transition: border-color 0.15s;
+    }
+    .input-wrap:focus-within { border-color: #6366f1; }
+    .input-icon { color: #475569; font-size: 18px; padding: 0 10px; flex-shrink: 0; }
+    input[type="time"], input[type="number"] {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: #e2e8f0; font-size: 14px; padding: 10px 10px 10px 0;
+    }
+    input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
+
+    .field-error { font-size: 12px; color: #ef4444; }
+    .overlap-warn {
+      display: flex; align-items: center; gap: 8px;
+      background: #2d1515; border: 1px solid #7f1d1d;
+      border-radius: 8px; padding: 10px 14px;
+      font-size: 13px; color: #f87171;
+    }
+    .overlap-warn .material-icons { font-size: 18px; }
+
+    .submit-btn {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 11px; border-radius: 8px; border: none;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .submit-btn:hover:not(:disabled) { opacity: 0.9; }
+    .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .submit-btn .material-icons { font-size: 18px; }
+
+    /* Table */
+    .empty-state { text-align: center; padding: 48px; color: #475569; }
+    .empty-state .material-icons { font-size: 40px; display: block; margin: 0 auto 12px; }
+    .empty-state p { margin: 0; font-size: 14px; }
+
+    .table-head {
+      display: grid; grid-template-columns: 100px 1fr 1fr 80px 40px;
+      padding: 8px 12px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em; color: #475569;
+      border-bottom: 1px solid #2d3148; margin-bottom: 4px;
+    }
+    .table-row {
+      display: grid; grid-template-columns: 100px 1fr 1fr 80px 40px;
+      align-items: center; padding: 10px 12px;
+      border-radius: 8px; transition: background 0.15s;
+    }
+    .table-row:hover { background: #1e2235; }
+
+    .cat-pill {
+      font-size: 11px; font-weight: 700; padding: 3px 10px;
+      border-radius: 10px; background: #1e2235; color: #818cf8;
+      border: 1px solid #2d3148; white-space: nowrap;
+    }
+    .cell-date { font-size: 13px; color: #94a3b8; }
+    .cell-time { font-size: 13px; color: #64748b; }
+    .cell-cap  { font-size: 13px; color: #64748b; }
+    .cap-num   { color: #22c55e; font-weight: 600; }
+
+    .del-btn {
+      background: transparent; border: none; cursor: pointer;
+      color: #475569; padding: 4px; border-radius: 6px;
+      display: flex; align-items: center; transition: all 0.15s;
+    }
+    .del-btn:hover { color: #ef4444; background: #2d1515; }
+    .del-btn .material-icons { font-size: 18px; }
+
+    @media (max-width: 900px) {
+      .admin-layout { grid-template-columns: 1fr; }
     }
   `]
 })
@@ -174,131 +262,73 @@ export class AdminComponent implements OnInit {
   timeSlots: TimeSlot[] = [];
   categories: Category[] = [];
   loading = false;
-  displayedColumns = ['category', 'date', 'time', 'capacity', 'actions'];
+  overlapError = false;
 
-  constructor(
-    private fb: FormBuilder,
-    private apiService: ApiService,
-    private snackBar: MatSnackBar
-  ) {
+  constructor(private fb: FormBuilder, private apiService: ApiService, private snackBar: MatSnackBar) {
     this.slotForm = this.fb.group({
-      category_id: ['', Validators.required],
-      date: ['', Validators.required],
-      start_time: ['', Validators.required],
-      end_time: ['', Validators.required],
+      category_id:  ['', Validators.required],
+      date:         ['', Validators.required],
+      start_time:   ['', Validators.required],
+      end_time:     ['', Validators.required],
       max_capacity: ['', [Validators.required, Validators.min(1)]]
     });
   }
 
   ngOnInit(): void {
-    this.loadCategories();
-    this.loadTimeSlots();
-  }
-
-  private loadCategories(): void {
     this.apiService.getCategories().subscribe({
-      next: (categories) => {
-        this.categories = categories;
-      },
-      error: () => {
-        this.snackBar.open('Failed to load categories', 'Close', { duration: 3000 });
-      }
+      next: c => this.categories = c,
+      error: () => this.categories = [{ id: 1, name: 'Cat 1' }, { id: 2, name: 'Cat 2' }, { id: 3, name: 'Cat 3' }]
     });
-  }
-
-  private loadTimeSlots(): void {
     this.apiService.getSlots().subscribe({
-      next: (slots) => {
-        this.timeSlots = slots;
-      },
-      error: () => {
-        this.snackBar.open('Failed to load time slots', 'Close', { duration: 3000 });
-      }
+      next: s => this.timeSlots = s,
+      error: () => this.timeSlots = []
     });
   }
 
   onSubmit(): void {
-    if (this.slotForm.valid) {
-      this.loading = true;
-      const formValue = this.slotForm.value;
-      
-      // Combine date and time
-      const startDateTime = this.combineDateTime(formValue.date, formValue.start_time);
-      const endDateTime = this.combineDateTime(formValue.date, formValue.end_time);
+    if (this.slotForm.invalid) return;
+    const v = this.slotForm.value;
+    const start = this.combineDateTime(v.date, v.start_time);
+    const end   = this.combineDateTime(v.date, v.end_time);
 
-      // Check for overlapping slots
-      if (this.hasOverlappingSlot(formValue.category_id, startDateTime, endDateTime)) {
-        this.loading = false;
-        this.snackBar.open('Overlapping slot detected for this category', 'Close', { duration: 3000 });
-        return;
-      }
-
-      const newSlot = {
-        category_id: formValue.category_id,
-        start_time: startDateTime,
-        end_time: endDateTime,
-        max_capacity: formValue.max_capacity
-      };
-
-      this.apiService.createSlot(newSlot).subscribe({
-        next: () => {
-          this.loading = false;
-          this.slotForm.reset();
-          this.loadTimeSlots();
-          this.snackBar.open('Time slot created successfully!', 'Close', { duration: 3000 });
-        },
-        error: () => {
-          this.loading = false;
-          this.snackBar.open('Failed to create time slot', 'Close', { duration: 3000 });
-        }
-      });
+    if (this.hasOverlap(+v.category_id, start, end)) {
+      this.overlapError = true; return;
     }
-  }
+    this.overlapError = false;
+    this.loading = true;
 
-  deleteSlot(slotId: number): void {
-    if (confirm('Are you sure you want to delete this time slot?')) {
-      this.apiService.deleteSlot(slotId).subscribe({
-        next: () => {
-          this.loadTimeSlots();
-          this.snackBar.open('Time slot deleted successfully!', 'Close', { duration: 3000 });
-        },
-        error: () => {
-          this.snackBar.open('Failed to delete time slot', 'Close', { duration: 3000 });
-        }
-      });
-    }
-  }
-
-  private combineDateTime(date: Date, time: string): string {
-    const [hours, minutes] = time.split(':');
-    const dateTime = new Date(date);
-    dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-    return dateTime.toISOString();
-  }
-
-  private hasOverlappingSlot(categoryId: number, startTime: string, endTime: string): boolean {
-    return this.timeSlots.some(slot => {
-      if (slot.category_id !== categoryId) return false;
-      
-      const slotStart = new Date(slot.start_time);
-      const slotEnd = new Date(slot.end_time);
-      const newStart = new Date(startTime);
-      const newEnd = new Date(endTime);
-      
-      return (newStart < slotEnd && newEnd > slotStart);
+    this.apiService.createSlot({ category_id: +v.category_id, start_time: start, end_time: end, max_capacity: +v.max_capacity }).subscribe({
+      next: slot => {
+        this.timeSlots = [slot, ...this.timeSlots];
+        this.slotForm.reset(); this.loading = false;
+        this.snackBar.open('Slot created!', 'Close', { duration: 3000 });
+      },
+      error: () => { this.loading = false; this.snackBar.open('Failed to create slot', 'Close', { duration: 3000 }); }
     });
   }
 
-  getCategoryName(categoryId: number): string {
-    const category = this.categories.find(c => c.id === categoryId);
-    return category?.name || 'Unknown';
+  deleteSlot(id: number): void {
+    if (!confirm('Delete this slot?')) return;
+    this.apiService.deleteSlot(id).subscribe({
+      next: () => { this.timeSlots = this.timeSlots.filter(s => s.id !== id); this.snackBar.open('Slot deleted', 'Close', { duration: 3000 }); },
+      error: () => this.snackBar.open('Failed to delete', 'Close', { duration: 3000 })
+    });
   }
 
-  formatDate(dateTime: string): string {
-    return new Date(dateTime).toLocaleDateString();
+  private combineDateTime(date: Date, time: string): string {
+    const [h, m] = time.split(':');
+    const d = new Date(date); d.setHours(+h, +m, 0, 0);
+    return d.toISOString();
   }
 
-  formatTime(dateTime: string): string {
-    return new Date(dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  private hasOverlap(catId: number, start: string, end: string): boolean {
+    return this.timeSlots.some(s => {
+      if (s.category_id !== catId) return false;
+      return new Date(start) < new Date(s.end_time) && new Date(end) > new Date(s.start_time);
+    });
   }
+
+  getCategoryName(id: number): string { return this.categories.find(c => c.id === id)?.name || 'Unknown'; }
+  formatDate(dt: string): string { return new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+  formatTime(dt: string): string { return new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 }

@@ -1,20 +1,59 @@
 @import '@angular/material/prebuilt-themes/indigo-pink.css';
 
-html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+* { box-sizing: border-box; }
 
-.mat-mdc-card {
-  margin: 16px;
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+  background: #0f1117;
+  color: #e2e8f0;
 }
 
-.full-width {
-  width: 100%;
+/* Override Material for dark theme */
+.mat-mdc-dialog-container {
+  --mdc-dialog-container-color: #1a1d27 !important;
+  --mdc-dialog-subhead-color: #e2e8f0 !important;
+  --mdc-dialog-supporting-text-color: #94a3b8 !important;
 }
+.mat-mdc-form-field {
+  --mdc-outlined-text-field-label-text-color: #64748b;
+  --mdc-outlined-text-field-input-text-color: #e2e8f0;
+  --mdc-outlined-text-field-outline-color: #2d3148;
+  --mdc-outlined-text-field-hover-outline-color: #6366f1;
+  --mdc-outlined-text-field-focus-outline-color: #6366f1;
+  --mdc-outlined-text-field-container-shape: 8px;
+}
+.mat-mdc-text-field-wrapper { background: #0f1117 !important; }
+.mat-mdc-select-value { color: #e2e8f0 !important; }
+.mat-mdc-option { background: #1a1d27 !important; color: #e2e8f0 !important; }
+.mat-mdc-option:hover { background: #2d3148 !important; }
+.mat-mdc-select-panel { background: #1a1d27 !important; }
+.mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: #1e2235;
+  --mdc-snackbar-supporting-text-color: #e2e8f0;
+}
+.mat-mdc-dialog-actions { border-top: 1px solid #2d3148 !important; }
+.mat-mdc-dialog-title { color: #e2e8f0 !important; }
+.mat-datepicker-content { background: #1a1d27 !important; color: #e2e8f0 !important; }
+.mat-calendar-body-cell-content { color: #e2e8f0 !important; }
+.mat-calendar-body-selected { background: #6366f1 !important; }
+.mat-mdc-table { background: #1a1d27 !important; }
+.mat-mdc-header-cell { color: #64748b !important; border-bottom-color: #2d3148 !important; }
+.mat-mdc-cell { color: #e2e8f0 !important; border-bottom-color: #2d3148 !important; }
+.mat-mdc-row:hover .mat-mdc-cell { background: #1e2235 !important; }
+.mat-mdc-checkbox .mdc-checkbox__background { border-color: #2d3148 !important; }
+.mat-mdc-checkbox.mat-mdc-checkbox-checked .mdc-checkbox__background { background: #6366f1 !important; border-color: #6366f1 !important; }
+.mat-mdc-chip { background: #2d3148 !important; color: #94a3b8 !important; }
+.mat-mdc-progress-bar { --mdc-linear-progress-track-color: #2d3148; }
+.mat-mdc-progress-spinner circle { stroke: #6366f1 !important; }
 
-.text-center {
-  text-align: center;
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #6366f1; }
 
-.spacer {
-  flex: 1 1 auto;
-}
+/* Utility */
+.spacer { flex: 1 1 auto; }
+.full-width { width: 100%; }

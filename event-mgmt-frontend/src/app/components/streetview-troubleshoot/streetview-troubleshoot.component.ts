@@ -1,22 +1,15 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatBadgeModule } from '@angular/material/badge';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatTabsModule } from '@angular/material/tabs';
+import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { TroubleshootingAgentService } from './services/troubleshooting-agent.service';
 import { TicketService } from './services/ticket.service';
 import { AIAgentMessage, TroubleshootingStep, CameraStatus, Ticket, TicketStatus } from './models/troubleshooting.models';
-import { ChatInterfaceComponent } from './chat-interface.component';
-import { StepGuidanceComponent } from './step-guidance.component';
-import { CameraStatusComponent } from './camera-status.component';
-import { TicketListComponent } from './ticket-list.component';
+import { ChatPanelComponent } from './chat-panel.component';
+import { RightPanelComponent } from './right-panel.component';
 import { TicketDialogComponent, TicketDialogData } from './ticket-dialog.component';
 
 @Component({
@@ -24,156 +17,295 @@ import { TicketDialogComponent, TicketDialogData } from './ticket-dialog.compone
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatButtonModule,
     MatIconModule,
-    MatProgressBarModule,
-    MatChipsModule,
-    MatBadgeModule,
-    MatDividerModule,
-    MatTabsModule,
+    MatButtonModule,
+    MatTooltipModule,
     MatSnackBarModule,
     MatDialogModule,
-    ChatInterfaceComponent,
-    StepGuidanceComponent,
-    CameraStatusComponent,
-    TicketListComponent
+    ChatPanelComponent,
+    RightPanelComponent
   ],
   template: `
-    <div class="troubleshoot-container">
-      <div class="header">
-        <h1>
-          <mat-icon>camera_alt</mat-icon>
-          Street View Camera Troubleshooting
-        </h1>
-        <p class="subtitle">AI-Powered Diagnostic Assistant</p>
-      </div>
+    <div class="app-shell">
 
-      <div class="main-layout">
-        <!-- Left Panel -->
-        <div class="left-panel">
-          <app-camera-status
-            [cameraStatus]="cameraStatus"
-            (refreshStatus)="refreshCameraStatus()">
-          </app-camera-status>
-
-          <mat-card class="quick-actions">
-            <mat-card-header>
-              <mat-card-title>Quick Actions</mat-card-title>
-            </mat-card-header>
-            <mat-card-content>
-              <button mat-raised-button color="primary" class="action-btn" (click)="runFullDiagnostic()">
-                <mat-icon>search</mat-icon> Run Full Diagnostic
-              </button>
-              <button mat-raised-button class="action-btn" (click)="openCreateTicketDialog()">
-                <mat-icon>confirmation_number</mat-icon>
-                Create Ticket
-                <span class="open-badge" *ngIf="openTicketCount > 0">{{openTicketCount}}</span>
-              </button>
-              <button mat-raised-button class="action-btn" (click)="restartCamera()">
-                <mat-icon>restart_alt</mat-icon> Restart Camera
-              </button>
-              <button mat-raised-button class="action-btn" (click)="exportReport()">
-                <mat-icon>download</mat-icon> Export Report
-              </button>
-            </mat-card-content>
-          </mat-card>
+      <!-- ── Sidebar ── -->
+      <aside class="sidebar">
+        <div class="sidebar-logo">
+          <mat-icon class="logo-icon">camera_alt</mat-icon>
+          <span class="logo-text" *ngIf="!sidebarCollapsed">StreetView AI</span>
         </div>
 
-        <!-- Center Panel: Tabs for Chat + Tickets -->
-        <div class="center-panel">
-          <mat-tab-group animationDuration="200ms" class="center-tabs">
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <mat-icon>smart_toy</mat-icon>&nbsp;AI Assistant
-              </ng-template>
-              <app-chat-interface
-                [messages]="messages"
-                (sendMessage)="handleUserMessage($event)"
-                (actionClicked)="handleAgentAction($event)">
-              </app-chat-interface>
-            </mat-tab>
+        <nav class="sidebar-nav">
+          <button class="nav-item" [class.active]="activePanel === 'chat'"
+                  (click)="activePanel = 'chat'" matTooltip="AI Chat" matTooltipPosition="right">
+            <mat-icon>smart_toy</mat-icon>
+            <span *ngIf="!sidebarCollapsed">AI Assistant</span>
+          </button>
+          <button class="nav-item" [class.active]="activePanel === 'steps'"
+                  (click)="activePanel = 'steps'" matTooltip="Steps" matTooltipPosition="right">
+            <mat-icon>checklist</mat-icon>
+            <span *ngIf="!sidebarCollapsed">Steps</span>
+          </button>
+          <button class="nav-item" [class.active]="activePanel === 'tickets'"
+                  (click)="activePanel = 'tickets'" matTooltip="Tickets" matTooltipPosition="right">
+            <mat-icon>confirmation_number</mat-icon>
+            <span *ngIf="!sidebarCollapsed">Tickets</span>
+            <span class="nav-badge" *ngIf="openTicketCount > 0 && !sidebarCollapsed">{{openTicketCount}}</span>
+            <span class="nav-badge-dot" *ngIf="openTicketCount > 0 && sidebarCollapsed"></span>
+          </button>
+          <button class="nav-item" [class.active]="activePanel === 'status'"
+                  (click)="activePanel = 'status'" matTooltip="Camera Status" matTooltipPosition="right">
+            <mat-icon>videocam</mat-icon>
+            <span *ngIf="!sidebarCollapsed">Camera Status</span>
+          </button>
+        </nav>
 
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <mat-icon>confirmation_number</mat-icon>&nbsp;Tickets
-                <span class="tab-badge" *ngIf="openTicketCount > 0">{{openTicketCount}}</span>
-              </ng-template>
-              <app-ticket-list
-                [tickets]="tickets"
-                (editTicket)="openEditTicketDialog($event)"
-                (deleteTicket)="handleDeleteTicket($event)"
-                (statusChanged)="handleStatusChange($event)">
-              </app-ticket-list>
-            </mat-tab>
-          </mat-tab-group>
+        <div class="sidebar-footer">
+          <button class="nav-item" (click)="openCreateTicketDialog()"
+                  matTooltip="New Ticket" matTooltipPosition="right">
+            <mat-icon>add_circle_outline</mat-icon>
+            <span *ngIf="!sidebarCollapsed">New Ticket</span>
+          </button>
+          <button class="nav-item" (click)="exportReport()"
+                  matTooltip="Export Report" matTooltipPosition="right">
+            <mat-icon>download</mat-icon>
+            <span *ngIf="!sidebarCollapsed">Export</span>
+          </button>
+          <button class="nav-item collapse-btn" (click)="sidebarCollapsed = !sidebarCollapsed"
+                  [matTooltip]="sidebarCollapsed ? 'Expand' : 'Collapse'" matTooltipPosition="right">
+            <mat-icon>{{sidebarCollapsed ? 'chevron_right' : 'chevron_left'}}</mat-icon>
+          </button>
         </div>
+      </aside>
 
-        <!-- Right Panel: Steps -->
-        <div class="right-panel">
-          <app-step-guidance
+      <!-- ── Main content ── -->
+      <div class="main-content">
+
+        <!-- Top bar -->
+        <header class="topbar">
+          <div class="topbar-left">
+            <div class="status-pill" [class.online]="cameraStatus?.online">
+              <span class="status-dot"></span>
+              {{cameraStatus?.online ? 'Camera Online' : 'Camera Offline'}}
+            </div>
+            <span class="camera-id">{{cameraStatus?.cameraId || 'Loading...'}}</span>
+          </div>
+          <div class="topbar-right">
+            <button mat-icon-button (click)="refreshCameraStatus()" matTooltip="Refresh status">
+              <mat-icon>refresh</mat-icon>
+            </button>
+            <button mat-icon-button (click)="runFullDiagnostic()" matTooltip="Run diagnostics">
+              <mat-icon>search</mat-icon>
+            </button>
+            <button mat-icon-button (click)="restartCamera()" matTooltip="Restart camera">
+              <mat-icon>restart_alt</mat-icon>
+            </button>
+          </div>
+        </header>
+
+        <!-- Content area -->
+        <div class="content-area">
+          <!-- Chat always visible in center -->
+          <app-chat-panel
+            class="chat-area"
+            [messages]="messages"
+            [isTyping]="isTyping"
+            (sendMessage)="handleUserMessage($event)"
+            (actionClicked)="handleAgentAction($event)">
+          </app-chat-panel>
+
+          <!-- Right panel -->
+          <app-right-panel
+            class="right-area"
+            [activeTab]="activePanel"
             [steps]="troubleshootingSteps"
             [currentStepIndex]="currentStepIndex"
+            [cameraStatus]="cameraStatus"
+            [tickets]="tickets"
             (stepCompleted)="handleStepCompleted($event)"
             (stepFailed)="handleStepFailed($event)"
             (stepSkipped)="handleStepSkipped($event)"
-            (createTicket)="openCreateTicketDialog()">
-          </app-step-guidance>
+            (createTicket)="openCreateTicketDialog()"
+            (editTicket)="openEditTicketDialog($event)"
+            (deleteTicket)="handleDeleteTicket($event)"
+            (statusChanged)="handleStatusChange($event)"
+            (refreshStatus)="refreshCameraStatus()">
+          </app-right-panel>
         </div>
       </div>
     </div>
   `,
   styles: [`
-    .troubleshoot-container {
-      padding: 20px;
-      height: calc(100vh - 64px);
+    :host { display: block; height: calc(100vh - 64px); }
+
+    .app-shell {
+      display: flex;
+      height: 100%;
+      background: #0f1117;
+      color: #e2e8f0;
+      font-family: 'Inter', 'Roboto', sans-serif;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: #1a1d27;
+      border-right: 1px solid #2d3148;
       display: flex;
       flex-direction: column;
-      box-sizing: border-box;
-    }
-    .header { text-align: center; margin-bottom: 16px; }
-    .header h1 {
-      display: flex; align-items: center; justify-content: center;
-      gap: 12px; margin: 0; color: #1976d2;
-    }
-    .subtitle { color: #666; margin: 6px 0 0 0; }
-    .main-layout {
-      display: grid;
-      grid-template-columns: 280px 1fr 340px;
-      gap: 16px;
-      flex: 1;
+      transition: width 0.2s ease, min-width 0.2s ease;
       overflow: hidden;
     }
-    .left-panel, .center-panel, .right-panel {
-      display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 16px 16px;
+      border-bottom: 1px solid #2d3148;
     }
-    .quick-actions mat-card-content { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
-    .action-btn { justify-content: flex-start; position: relative; }
-    .open-badge {
-      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-      background: #f44336; color: white; border-radius: 50%;
-      width: 18px; height: 18px; font-size: 11px;
-      display: flex; align-items: center; justify-content: center;
+    .logo-icon {
+      color: #6366f1;
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
     }
-    .center-tabs { height: 100%; }
-    .tab-badge {
-      background: #f44336; color: white; border-radius: 50%;
-      width: 18px; height: 18px; font-size: 11px;
-      display: inline-flex; align-items: center; justify-content: center;
-      margin-left: 4px;
+    .logo-text {
+      font-size: 16px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      white-space: nowrap;
     }
-    @media (max-width: 1200px) {
-      .main-layout { grid-template-columns: 1fr; }
-      .left-panel, .right-panel { display: none; }
+    .sidebar-nav {
+      flex: 1;
+      padding: 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      width: 100%;
+      text-align: left;
+      position: relative;
+    }
+    .nav-item:hover { background: #2d3148; color: #e2e8f0; }
+    .nav-item.active { background: #2d3148; color: #6366f1; }
+    .nav-item.active mat-icon { color: #6366f1; }
+    .nav-item mat-icon { font-size: 20px; width: 20px; height: 20px; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto;
+      background: #ef4444;
+      color: white;
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .nav-badge-dot {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 8px;
+      height: 8px;
+      background: #ef4444;
+      border-radius: 50%;
+    }
+    .sidebar-footer {
+      padding: 8px;
+      border-top: 1px solid #2d3148;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .collapse-btn { color: #64748b; }
+
+    /* ── Main ── */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      flex-shrink: 0;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar-right { display: flex; align-items: center; gap: 4px; }
+    .topbar-right button { color: #94a3b8; }
+    .topbar-right button:hover { color: #e2e8f0; }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: #2d3148;
+      font-size: 13px;
+      font-weight: 500;
+      color: #ef4444;
+    }
+    .status-pill.online { color: #22c55e; }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .camera-id { font-size: 13px; color: #64748b; font-family: monospace; }
+
+    /* ── Content area ── */
+    .content-area {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      overflow: hidden;
+    }
+    .chat-area { overflow: hidden; }
+    .right-area { border-left: 1px solid #2d3148; overflow: hidden; }
+
+    @media (max-width: 1024px) {
+      .content-area { grid-template-columns: 1fr; }
+      .right-area { display: none; }
     }
   `]
 })
 export class StreetviewTroubleshootComponent implements OnInit {
-  messages: AIAgentMessage[] = [];
+  messages: AIAgentMessage[]       = [];
   troubleshootingSteps: TroubleshootingStep[] = [];
   currentStepIndex = 0;
   cameraStatus: CameraStatus | null = null;
-  tickets: Ticket[] = [];
+  tickets: Ticket[]                = [];
+  activePanel = 'chat';
+  sidebarCollapsed = false;
+  isTyping = false;
 
   constructor(
     private agentService: TroubleshootingAgentService,
@@ -187,6 +319,7 @@ export class StreetviewTroubleshootComponent implements OnInit {
     this.agentService.currentSteps$.subscribe(steps => {
       this.troubleshootingSteps = steps;
       this.currentStepIndex = steps.findIndex(s => s.status === 'pending');
+      if (steps.length > 0) this.activePanel = 'steps';
     });
     this.ticketService.tickets$.subscribe(t => this.tickets = t);
     this.refreshCameraStatus();
@@ -201,15 +334,21 @@ export class StreetviewTroubleshootComponent implements OnInit {
   }
 
   handleUserMessage(message: string): void {
-    this.agentService.sendMessage(message, true).subscribe();
+    this.isTyping = true;
+    this.agentService.sendMessage(message, true).subscribe(() => {
+      this.isTyping = false;
+    });
   }
 
   handleAgentAction(action: string): void {
-    this.agentService.startDiagnostic(action).subscribe();
+    this.isTyping = true;
+    this.agentService.startDiagnostic(action).subscribe(() => {
+      this.isTyping = false;
+    });
   }
 
   handleStepCompleted(step: TroubleshootingStep): void {
-    this.agentService.updateStepStatus(step.id, 'completed', 'Step completed successfully');
+    this.agentService.updateStepStatus(step.id, 'completed', 'Completed successfully');
     this.currentStepIndex++;
   }
 
@@ -232,23 +371,20 @@ export class StreetviewTroubleshootComponent implements OnInit {
       .afterClosed().subscribe(result => {
         if (result) {
           this.ticketService.createTicket(result, this.troubleshootingSteps).subscribe(ticket => {
-            this.snackBar.open(`Ticket ${ticket.id} created successfully!`, 'View', { duration: 4000 });
+            this.snackBar.open(`Ticket ${ticket.id} created!`, 'View', { duration: 4000 });
+            this.activePanel = 'tickets';
           });
         }
       });
   }
 
   openEditTicketDialog(ticket: Ticket): void {
-    const data: TicketDialogData = {
-      ticket,
-      steps: ticket.stepsSnapshot,
-      cameraId: ticket.cameraId
-    };
+    const data: TicketDialogData = { ticket, steps: ticket.stepsSnapshot, cameraId: ticket.cameraId };
     this.dialog.open(TicketDialogComponent, { data, width: '600px', disableClose: true })
       .afterClosed().subscribe(result => {
         if (result) {
           this.ticketService.updateTicket(ticket.id, result).subscribe(() => {
-            this.snackBar.open('Ticket updated successfully!', 'Close', { duration: 3000 });
+            this.snackBar.open('Ticket updated!', 'Close', { duration: 3000 });
           });
         }
       });
@@ -262,7 +398,7 @@ export class StreetviewTroubleshootComponent implements OnInit {
 
   handleStatusChange(event: { id: string; status: TicketStatus }): void {
     this.ticketService.updateTicket(event.id, { status: event.status }).subscribe(() => {
-      this.snackBar.open(`Ticket status updated to ${event.status}`, 'Close', { duration: 2000 });
+      this.snackBar.open(`Status → ${event.status}`, 'Close', { duration: 2000 });
     });
   }
 
@@ -275,18 +411,11 @@ export class StreetviewTroubleshootComponent implements OnInit {
   }
 
   exportReport(): void {
-    const report = {
-      generatedAt: new Date(),
-      cameraStatus: this.cameraStatus,
-      steps: this.troubleshootingSteps,
-      tickets: this.tickets
-    };
+    const report = { generatedAt: new Date(), cameraStatus: this.cameraStatus, steps: this.troubleshootingSteps, tickets: this.tickets };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sv-report-${Date.now()}.json`;
-    a.click();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `sv-report-${Date.now()}.json`; a.click();
     URL.revokeObjectURL(url);
     this.snackBar.open('Report exported!', 'Close', { duration: 3000 });
   }

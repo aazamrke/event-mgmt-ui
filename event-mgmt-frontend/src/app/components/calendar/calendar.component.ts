@@ -1,100 +1,195 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ApiService } from '../../services/api.service';
 import { PreferencesService } from '../../services/preferences.service';
 import { BookingService } from '../../services/booking.service';
-import { TimeSlot, Category, Booking } from '../../models';
-import { LoadingComponent } from '../shared/loading.component';
+import { TimeSlot, Category } from '../../models';
 
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [
-    CommonModule,
-    RouterModule,
-    MatCardModule,
-    MatButtonModule,
-    MatChipsModule,
-    MatSnackBarModule,
-    MatProgressSpinnerModule,
-    LoadingComponent
-  ],
+  imports: [CommonModule, RouterModule, MatSnackBarModule],
   template: `
-    <div class="calendar-container">
-      <div class="header">
-        <h2>Available Time Slots</h2>
-        <p *ngIf="selectedCategories.length === 0" class="no-preferences">
-          No categories selected. <a routerLink="/preferences">Set your preferences</a>
-        </p>
+    <div class="page">
+      <!-- Page header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Calendar</h1>
+          <p class="page-sub">Available time slots for your selected categories</p>
+        </div>
+        <a routerLink="/preferences" class="header-btn" *ngIf="selectedCategories.length === 0">
+          <span class="material-icons">tune</span> Set Preferences
+        </a>
       </div>
 
-      <app-loading [loading]="loading" message="Loading time slots..."></app-loading>
-
-      <div *ngIf="!loading && timeSlots.length === 0 && selectedCategories.length > 0" 
-           class="no-slots">
-        <p>No available time slots for your selected categories.</p>
+      <!-- Category filter pills -->
+      <div class="filter-bar" *ngIf="categories.length > 0">
+        <button class="pill" [class.active]="selectedCategories.includes(c.id)"
+                *ngFor="let c of categories" (click)="toggleCategory(c.id)">
+          {{c.name}}
+        </button>
       </div>
 
+      <!-- Empty state -->
+      <div class="empty-state" *ngIf="selectedCategories.length === 0 && !loading">
+        <span class="material-icons">calendar_month</span>
+        <h3>No categories selected</h3>
+        <p>Go to Preferences to select event categories you're interested in.</p>
+        <a routerLink="/preferences" class="cta-btn">Set Preferences</a>
+      </div>
+
+      <!-- Loading -->
+      <div class="loading-state" *ngIf="loading">
+        <div class="spinner"></div>
+        <p>Loading time slots...</p>
+      </div>
+
+      <!-- No slots -->
+      <div class="empty-state" *ngIf="!loading && timeSlots.length === 0 && selectedCategories.length > 0">
+        <span class="material-icons">event_busy</span>
+        <h3>No slots available</h3>
+        <p>No time slots found for your selected categories.</p>
+      </div>
+
+      <!-- Slots grid -->
       <div class="slots-grid" *ngIf="!loading && timeSlots.length > 0">
-        <mat-card *ngFor="let slot of timeSlots" class="slot-card">
-          <mat-card-header>
-            <mat-card-title>{{getCategoryName(slot.category_id)}}</mat-card-title>
-            <mat-card-subtitle>
-              {{formatDate(slot.start_time)}}
-            </mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="slot-details">
-              <p><strong>Time:</strong> {{formatTime(slot.start_time)}} - {{formatTime(slot.end_time)}}</p>
-              <p><strong>Available:</strong> {{slot.available_spots}} / {{slot.max_capacity}}</p>
+        <div *ngFor="let slot of timeSlots" class="slot-card"
+             [class.booked]="isBooked(slot.id)"
+             [class.full]="slot.available_spots === 0 && !isBooked(slot.id)">
+
+          <div class="slot-top">
+            <span class="category-tag">{{getCategoryName(slot.category_id)}}</span>
+            <span class="availability" [class.low]="slot.available_spots <= 2 && slot.available_spots > 0">
+              {{slot.available_spots === 0 ? 'Full' : slot.available_spots + ' spots'}}
+            </span>
+          </div>
+
+          <div class="slot-date">{{formatDate(slot.start_time)}}</div>
+
+          <div class="slot-time">
+            <span class="material-icons">schedule</span>
+            {{formatTime(slot.start_time)}} – {{formatTime(slot.end_time)}}
+          </div>
+
+          <div class="slot-capacity">
+            <div class="cap-bar">
+              <div class="cap-fill" [style.width.%]="getCapacityPct(slot)"
+                   [class.cap-low]="getCapacityPct(slot) > 80"></div>
             </div>
-          </mat-card-content>
-          <mat-card-actions>
-            <button mat-raised-button 
-                    [color]="isSlotBooked(slot.id) ? 'warn' : 'primary'"
-                    [disabled]="(!isSlotBooked(slot.id) && slot.available_spots === 0) || bookingInProgress"
-                    (click)="toggleBooking(slot)">
-              {{getButtonText(slot)}}
-            </button>
-          </mat-card-actions>
-        </mat-card>
+            <span>{{slot.available_spots}}/{{slot.max_capacity}}</span>
+          </div>
+
+          <button class="slot-btn"
+                  [class.cancel-btn]="isBooked(slot.id)"
+                  [disabled]="(slot.available_spots === 0 && !isBooked(slot.id)) || bookingInProgress"
+                  (click)="toggleBooking(slot)">
+            <span class="material-icons">{{isBooked(slot.id) ? 'event_busy' : 'event_available'}}</span>
+            {{getButtonLabel(slot)}}
+          </button>
+        </div>
       </div>
     </div>
   `,
   styles: [`
-    .calendar-container {
-      padding: 20px;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    .header {
+    .page { padding: 28px 32px; height: 100%; overflow-y: auto; background: #0f1117; }
+
+    .page-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
       margin-bottom: 24px;
     }
-    .no-preferences {
-      color: #666;
+    .page-title { font-size: 26px; font-weight: 700; color: #f1f5f9; margin: 0 0 4px; }
+    .page-sub   { font-size: 14px; color: #64748b; margin: 0; }
+    .header-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border-radius: 8px;
+      background: #1e2235; border: 1px solid #2d3148;
+      color: #818cf8; font-size: 14px; font-weight: 500;
+      text-decoration: none; transition: all 0.15s;
     }
-    .no-slots {
-      text-align: center;
-      padding: 40px;
-      color: #666;
+    .header-btn:hover { background: #2d3148; }
+    .header-btn .material-icons { font-size: 18px; }
+
+    .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+    .pill {
+      padding: 6px 16px; border-radius: 20px;
+      border: 1px solid #2d3148; background: transparent;
+      color: #64748b; font-size: 13px; cursor: pointer; transition: all 0.15s;
     }
+    .pill:hover { border-color: #6366f1; color: #818cf8; }
+    .pill.active { background: #1e2235; border-color: #6366f1; color: #818cf8; }
+
+    .empty-state {
+      text-align: center; padding: 80px 20px; color: #475569;
+    }
+    .empty-state .material-icons { font-size: 56px; display: block; margin: 0 auto 16px; color: #2d3148; }
+    .empty-state h3 { font-size: 20px; color: #64748b; margin: 0 0 8px; }
+    .empty-state p  { font-size: 14px; margin: 0 0 24px; }
+    .cta-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 24px; border-radius: 8px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white; font-size: 14px; font-weight: 600;
+      text-decoration: none; transition: opacity 0.15s;
+    }
+    .cta-btn:hover { opacity: 0.9; }
+
+    .loading-state { display: flex; flex-direction: column; align-items: center; padding: 80px; color: #475569; }
+    .spinner {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid #2d3148; border-top-color: #6366f1;
+      animation: spin 0.8s linear infinite; margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     .slots-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 16px;
     }
     .slot-card {
-      height: fit-content;
+      background: #1a1d27; border: 1px solid #2d3148;
+      border-radius: 12px; padding: 18px;
+      transition: border-color 0.2s, transform 0.15s;
     }
-    .slot-details p {
-      margin: 8px 0;
+    .slot-card:hover { border-color: #6366f1; transform: translateY(-2px); }
+    .slot-card.booked { border-color: #166534; background: #0d1f12; }
+    .slot-card.full   { opacity: 0.5; }
+
+    .slot-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .category-tag {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 3px 10px; border-radius: 10px;
+      background: #1e2235; color: #818cf8; border: 1px solid #2d3148;
     }
+    .availability { font-size: 12px; font-weight: 600; color: #22c55e; }
+    .availability.low { color: #f59e0b; }
+
+    .slot-date { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
+    .slot-time {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: #64748b; margin-bottom: 14px;
+    }
+    .slot-time .material-icons { font-size: 16px; }
+
+    .slot-capacity { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .cap-bar { flex: 1; height: 4px; background: #2d3148; border-radius: 2px; overflow: hidden; }
+    .cap-fill { height: 100%; background: #22c55e; border-radius: 2px; transition: width 0.3s; }
+    .cap-fill.cap-low { background: #f59e0b; }
+    .slot-capacity span { font-size: 12px; color: #64748b; white-space: nowrap; }
+
+    .slot-btn {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px; border-radius: 8px; border: none;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .slot-btn:hover:not(:disabled) { opacity: 0.85; }
+    .slot-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .slot-btn.cancel-btn { background: #1c2a1c; border: 1px solid #166534; color: #4ade80; }
+    .slot-btn .material-icons { font-size: 16px; }
   `]
 })
 export class CalendarComponent implements OnInit {
@@ -112,166 +207,82 @@ export class CalendarComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.loadCategories();
-    // Load initial preferences
     this.selectedCategories = this.preferencesService.getPreferences();
-    if (this.selectedCategories.length > 0) {
-      this.loadTimeSlots();
-    }
-    
-    // Subscribe to preference changes
+    this.loadCategories();
     this.preferencesService.preferences$.subscribe(prefs => {
       this.selectedCategories = prefs;
-      if (prefs.length > 0) {
-        this.loadTimeSlots();
-      } else {
-        this.timeSlots = [];
-        this.loading = false;
-      }
+      if (prefs.length > 0) this.loadTimeSlots();
+      else this.timeSlots = [];
     });
   }
 
   private loadCategories(): void {
     this.apiService.getCategories().subscribe({
-      next: (categories) => {
-        this.categories = categories;
-      },
-      error: (error) => {
-        console.error('Error loading categories:', error);
-        this.snackBar.open('Failed to load categories. Please check if the backend is running.', 'Close', { duration: 5000 });
-        // Set mock categories for development
-        this.categories = [
-          { id: 1, name: 'Cat 1' },
-          { id: 2, name: 'Cat 2' },
-          { id: 3, name: 'Cat 3' }
-        ];
+      next: c => { this.categories = c; if (this.selectedCategories.length) this.loadTimeSlots(); },
+      error: () => {
+        this.categories = [{ id: 1, name: 'Cat 1' }, { id: 2, name: 'Cat 2' }, { id: 3, name: 'Cat 3' }];
+        if (this.selectedCategories.length) this.loadTimeSlots();
       }
     });
   }
 
   private loadTimeSlots(): void {
-    if (this.selectedCategories.length === 0) {
-      this.timeSlots = [];
-      this.loading = false;
-      return;
-    }
-
+    if (!this.selectedCategories.length) { this.timeSlots = []; return; }
     this.loading = true;
     this.apiService.getSlots(this.selectedCategories).subscribe({
-      next: (slots) => {
-        this.timeSlots = slots;
-        this.loading = false;
-      },
-      error: (error) => {
-        console.error('Error loading time slots:', error);
-        this.loading = false;
-        // Show demo data when backend is unavailable
-        this.timeSlots = this.generateDemoSlots();
-        this.snackBar.open('Backend unavailable - showing demo data', 'Close', { duration: 5000 });
-      }
+      next: s => { this.timeSlots = s; this.loading = false; },
+      error: () => { this.timeSlots = this.generateDemoSlots(); this.loading = false; }
     });
   }
 
-  private generateDemoSlots(): TimeSlot[] {
-    const demoSlots: TimeSlot[] = [];
-    const today = new Date();
-    
-    this.selectedCategories.forEach((categoryId, index) => {
-      for (let i = 0; i < 3; i++) {
-        const slotDate = new Date(today);
-        slotDate.setDate(today.getDate() + i + 1);
-        slotDate.setHours(10 + (index * 2), 0, 0, 0);
-        
-        const endDate = new Date(slotDate);
-        endDate.setHours(slotDate.getHours() + 1);
-        
-        demoSlots.push({
-          id: (categoryId * 10) + i,
-          category_id: categoryId,
-          start_time: slotDate.toISOString(),
-          end_time: endDate.toISOString(),
-          max_capacity: 10,
-          available_spots: Math.floor(Math.random() * 8) + 2
-        });
-      }
-    });
-    
-    return demoSlots;
+  toggleCategory(id: number): void {
+    const idx = this.selectedCategories.indexOf(id);
+    if (idx > -1) this.selectedCategories.splice(idx, 1);
+    else this.selectedCategories.push(id);
+    if (this.selectedCategories.length) this.loadTimeSlots();
+    else this.timeSlots = [];
   }
 
   toggleBooking(slot: TimeSlot): void {
     this.bookingInProgress = true;
-    
-    if (this.isSlotBooked(slot.id)) {
-      this.cancelBooking(slot);
+    if (this.isBooked(slot.id)) {
+      const booking = this.bookingService.getBookingForSlot(slot.id);
+      if (booking) {
+        this.bookingService.cancelBooking(booking.id).subscribe({
+          next: () => { this.bookingInProgress = false; this.snackBar.open('Booking cancelled', 'Close', { duration: 3000 }); slot.available_spots++; },
+          error: () => { this.bookingInProgress = false; this.snackBar.open('Cancelled (demo)', 'Close', { duration: 3000 }); slot.available_spots++; }
+        });
+      } else { this.bookingInProgress = false; }
     } else {
-      this.bookSlot(slot);
-    }
-  }
-
-  private bookSlot(slot: TimeSlot): void {
-    this.bookingService.createBooking(slot.id).subscribe({
-      next: () => {
-        this.bookingInProgress = false;
-        this.snackBar.open('Booking successful!', 'Close', { duration: 3000 });
-        this.loadTimeSlots();
-      },
-      error: (error) => {
-        console.error('Booking error:', error);
-        this.bookingInProgress = false;
-        // Simulate booking in demo mode
-        this.snackBar.open('Demo mode: Booking simulated successfully!', 'Close', { duration: 3000 });
-        // Update slot availability locally
-        slot.available_spots = Math.max(0, slot.available_spots - 1);
-      }
-    });
-  }
-
-  private cancelBooking(slot: TimeSlot): void {
-    const booking = this.bookingService.getBookingForSlot(slot.id);
-    if (booking) {
-      this.bookingService.cancelBooking(booking.id).subscribe({
-        next: () => {
-          this.bookingInProgress = false;
-          this.snackBar.open('Booking cancelled successfully!', 'Close', { duration: 3000 });
-          this.loadTimeSlots();
-        },
-        error: (error) => {
-          console.error('Cancellation error:', error);
-          this.bookingInProgress = false;
-          // Simulate cancellation in demo mode
-          this.snackBar.open('Demo mode: Cancellation simulated successfully!', 'Close', { duration: 3000 });
-          // Update slot availability locally
-          slot.available_spots = Math.min(slot.max_capacity, slot.available_spots + 1);
-        }
+      this.bookingService.createBooking(slot.id).subscribe({
+        next: () => { this.bookingInProgress = false; this.snackBar.open('Booked!', 'Close', { duration: 3000 }); slot.available_spots--; },
+        error: () => { this.bookingInProgress = false; this.snackBar.open('Booked (demo)', 'Close', { duration: 3000 }); slot.available_spots--; }
       });
-    } else {
-      this.bookingInProgress = false;
-      this.snackBar.open('Demo mode: Cancellation simulated!', 'Close', { duration: 3000 });
     }
   }
 
-  isSlotBooked(slotId: number): boolean {
-    return this.bookingService.isSlotBooked(slotId);
-  }
-
-  getButtonText(slot: TimeSlot): string {
+  isBooked(slotId: number): boolean { return this.bookingService.isSlotBooked(slotId); }
+  getCategoryName(id: number): string { return this.categories.find(c => c.id === id)?.name || 'Unknown'; }
+  formatDate(dt: string): string { return new Date(dt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+  formatTime(dt: string): string { return new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  getCapacityPct(slot: TimeSlot): number { return ((slot.max_capacity - slot.available_spots) / slot.max_capacity) * 100; }
+  getButtonLabel(slot: TimeSlot): string {
     if (this.bookingInProgress) return 'Processing...';
-    if (this.isSlotBooked(slot.id)) return 'Cancel Booking';
+    if (this.isBooked(slot.id)) return 'Cancel Booking';
     if (slot.available_spots === 0) return 'Full';
     return 'Book Slot';
   }
 
-  getCategoryName(categoryId: number): string {
-    const category = this.categories.find(c => c.id === categoryId);
-    return category?.name || 'Unknown';
-  }
-
-  formatDate(dateTime: string): string {
-    return new Date(dateTime).toLocaleDateString();
-  }
-
-  formatTime(dateTime: string): string {
-    return new Date(dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  private generateDemoSlots(): TimeSlot[] {
+    const slots: TimeSlot[] = [];
+    const today = new Date();
+    this.selectedCategories.forEach((catId, ci) => {
+      for (let i = 0; i < 4; i++) {
+        const d = new Date(today); d.setDate(today.getDate() + i + 1); d.setHours(9 + ci * 3, 0, 0, 0);
+        const e = new Date(d); e.setHours(d.getHours() + 1);
+        slots.push({ id: catId * 10 + i, category_id: catId, start_time: d.toISOString(), end_time: e.toISOString(), max_capacity: 10, available_spots: Math.floor(Math.random() * 8) + 1 });
+      }
+    });
+    return slots;
   }
 }
