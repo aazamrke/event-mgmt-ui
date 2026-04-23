@@ -1,207 +1,838 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { RouterModule, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { BehaviorSubject, of } from 'rxjs';
+import { of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { DriverChatComponent } from './driver-chat.component';
 import { DriverRightPanelComponent } from './driver-right-panel.component';
 import { DriverMessage, TripInfo, Incident, RouteStop } from './driver.models';
+import { AuthService } from '../../services/auth.service';
+import { TicketService } from '../streetview-troubleshoot/services/ticket.service';
+import { User } from '../../models';
 
 @Component({
   selector: 'app-driver',
   standalone: true,
   imports: [
-    CommonModule,
+    CommonModule, FormsModule, RouterModule,
     MatIconModule, MatButtonModule, MatTooltipModule, MatSnackBarModule,
     DriverChatComponent, DriverRightPanelComponent
   ],
   template: `
-    <div class="app-shell">
+    <div class="driver-page">
 
-      <!-- Sidebar -->
-      <aside class="sidebar" [class.collapsed]="sidebarCollapsed">
-        <div class="sidebar-logo">
-          <mat-icon class="logo-icon">local_shipping</mat-icon>
-          <span class="logo-text" *ngIf="!sidebarCollapsed">Driver Hub</span>
-        </div>
+      <!-- ── Header ── -->
+      <header class="portal-header">
 
-        <nav class="sidebar-nav">
-          <button class="nav-item" [class.active]="activePanel==='chat'"
-                  (click)="activePanel='chat'" matTooltip="AI Assistant" matTooltipPosition="right">
-            <mat-icon>support_agent</mat-icon>
-            <span *ngIf="!sidebarCollapsed">AI Assistant</span>
-          </button>
-          <button class="nav-item" [class.active]="activePanel==='route'"
-                  (click)="activePanel='route'" matTooltip="Route" matTooltipPosition="right">
-            <mat-icon>route</mat-icon>
-            <span *ngIf="!sidebarCollapsed">Route</span>
-          </button>
-          <button class="nav-item" [class.active]="activePanel==='incidents'"
-                  (click)="activePanel='incidents'" matTooltip="Incidents" matTooltipPosition="right">
-            <mat-icon>warning</mat-icon>
-            <span *ngIf="!sidebarCollapsed">Incidents</span>
-            <span class="nav-badge" *ngIf="openIncidentCount>0 && !sidebarCollapsed">{{openIncidentCount}}</span>
-            <span class="nav-badge-dot" *ngIf="openIncidentCount>0 && sidebarCollapsed"></span>
-          </button>
-          <button class="nav-item" [class.active]="activePanel==='vehicle'"
-                  (click)="activePanel='vehicle'" matTooltip="Vehicle" matTooltipPosition="right">
+        <!-- Left: branding -->
+        <div class="header-brand">
+          <div class="brand-icon">
             <mat-icon>directions_car</mat-icon>
-            <span *ngIf="!sidebarCollapsed">Vehicle</span>
-          </button>
-        </nav>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">Driver Portal</span>
+            <span class="brand-sub">Professional Camera Support System</span>
+          </div>
+        </div>
 
-        <div class="sidebar-footer">
-          <button class="nav-item" (click)="reportIncident()"
-                  matTooltip="Report Incident" matTooltipPosition="right">
-            <mat-icon>add_alert</mat-icon>
-            <span *ngIf="!sidebarCollapsed">Report Incident</span>
+        <!-- Centre: trip status pill -->
+        <div class="header-centre">
+          <div class="status-pill" [class]="'trip-' + (trip?.status || 'idle')">
+            <span class="status-dot"></span>
+            {{ tripStatusLabel }}
+          </div>
+          <span class="trip-id" *ngIf="trip">{{ trip.tripId }}</span>
+        </div>
+
+        <!-- Right: actions + user -->
+        <div class="header-right">
+          <button class="hdr-btn" (click)="refreshTrip()" matTooltip="Refresh trip">
+            <mat-icon>refresh</mat-icon>
           </button>
-          <button class="nav-item collapse-btn" (click)="sidebarCollapsed=!sidebarCollapsed"
-                  [matTooltip]="sidebarCollapsed?'Expand':'Collapse'" matTooltipPosition="right">
-            <mat-icon>{{sidebarCollapsed ? 'chevron_right' : 'chevron_left'}}</mat-icon>
+          <button class="hdr-btn" (click)="toggleTripStatus()"
+                  [matTooltip]="trip?.status === 'en-route' ? 'Pause trip' : 'Resume trip'">
+            <mat-icon>{{ trip?.status === 'en-route' ? 'pause_circle' : 'play_circle' }}</mat-icon>
+          </button>
+          <button class="hdr-btn warn" (click)="showModal=true" matTooltip="Report issue">
+            <mat-icon>add_alert</mat-icon>
+          </button>
+
+          <div class="divider-v"></div>
+
+          <!-- User avatar -->
+          <div class="user-chip">
+            <div class="user-avatar">{{ userInitial }}</div>
+            <div class="user-info">
+              <span class="user-name">{{ userName }}</span>
+              <span class="user-role">{{ userRole }}</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- ── Welcome Card ── -->
+      <div class="welcome-card">
+        <div class="welcome-left">
+          <div class="welcome-icon">
+            <mat-icon>waving_hand</mat-icon>
+          </div>
+          <div class="welcome-text">
+            <h2 class="welcome-heading">Welcome back, {{ userName }}!</h2>
+            <p class="welcome-desc">Ready to manage your camera system? Report issues or check your recent tickets below.</p>
+          </div>
+        </div>
+        <div class="welcome-actions">
+          <button class="wa-btn primary" (click)="activePanel='chat'">
+            <mat-icon>support_agent</mat-icon> Get AI Help
+          </button>
+          <button class="wa-btn outline" (click)="showModal=true">
+            <mat-icon>add_alert</mat-icon> Report Issue
           </button>
         </div>
-      </aside>
+      </div>
 
-      <!-- Main -->
-      <div class="main-content">
+      <!-- ── Sub-nav tabs ── -->
+      <nav class="sub-nav">
+        <button class="snav-tab" [class.active]="activePanel==='chat'"
+                (click)="activePanel='chat'">
+          <mat-icon>support_agent</mat-icon> AI Assistant
+        </button>
+        <button class="snav-tab" [class.active]="activePanel==='route'"
+                (click)="activePanel='route'">
+          <mat-icon>route</mat-icon> Route
+          <span class="snav-chip" *ngIf="trip">{{ trip.completedStops }}/{{ trip.totalStops }}</span>
+        </button>
+        <button class="snav-tab" [class.active]="activePanel==='incidents'"
+                (click)="activePanel='incidents'">
+          <mat-icon>warning_amber</mat-icon> Incidents
+          <span class="snav-badge" *ngIf="openIncidentCount > 0">{{ openIncidentCount }}</span>
+        </button>
+        <button class="snav-tab" [class.active]="activePanel==='vehicle'"
+                (click)="activePanel='vehicle'">
+          <mat-icon>directions_car</mat-icon> Vehicle
+        </button>
+      </nav>
 
-        <!-- Topbar -->
-        <header class="topbar">
-          <div class="topbar-left">
-            <div class="status-pill" [class]="'trip-'+trip?.status">
-              <span class="status-dot"></span>
-              {{ tripStatusLabel }}
+      <!-- ── Quick Actions + Support Info row ── -->
+      <div class="mid-row">
+
+        <!-- 75%: Quick Actions -->
+        <div class="mid-left">
+          <div class="section-heading">
+            <mat-icon>bolt</mat-icon> Quick Actions
+          </div>
+          <div class="qa-grid">
+
+            <!-- Report Issue card -->
+            <div class="qa-card" (click)="showModal=true">
+              <div class="qa-icon" style="background:#fce8e6">
+                <mat-icon style="color:#ea4335">add_alert</mat-icon>
+              </div>
+              <div class="qa-body">
+                <div class="qa-title">Report Issue</div>
+                <div class="qa-desc">Log a new incident or camera problem for immediate attention.</div>
+              </div>
+              <mat-icon class="qa-arrow">arrow_forward</mat-icon>
             </div>
-            <span class="trip-id">{{ trip?.tripId || 'Loading...' }}</span>
-            <span class="driver-name" *ngIf="trip">
-              <mat-icon>person</mat-icon>{{ trip.driverName }}
-            </span>
-          </div>
-          <div class="topbar-right">
-            <button mat-icon-button (click)="refreshTrip()" matTooltip="Refresh trip">
-              <mat-icon>refresh</mat-icon>
-            </button>
-            <button mat-icon-button (click)="toggleTripStatus()" matTooltip="Toggle trip status">
-              <mat-icon>{{ trip?.status === 'en-route' ? 'pause_circle' : 'play_circle' }}</mat-icon>
-            </button>
-            <button mat-icon-button (click)="reportIncident()" matTooltip="Report incident">
-              <mat-icon>add_alert</mat-icon>
-            </button>
-          </div>
-        </header>
 
-        <!-- Content -->
-        <div class="content-area">
-          <app-driver-chat
-            class="chat-area"
-            [messages]="messages"
-            [isTyping]="isTyping"
-            (sendMessage)="handleUserMessage($event)"
-            (actionClicked)="handleAction($event)">
-          </app-driver-chat>
+            <!-- Quick Status card -->
+            <div class="qa-card" (click)="activePanel='vehicle'">
+              <div class="qa-icon" style="background:#e8f0fe">
+                <mat-icon style="color:#1a73e8">speed</mat-icon>
+              </div>
+              <div class="qa-body">
+                <div class="qa-title">Quick Status</div>
+                <div class="qa-desc">View vehicle health, fuel level, engine temp and current speed.</div>
+              </div>
+              <mat-icon class="qa-arrow">arrow_forward</mat-icon>
+            </div>
 
-          <app-driver-right-panel
-            class="right-area"
-            [trip]="trip"
-            [incidents]="incidents"
-            [activeTab]="activePanel"
-            (completeStop)="handleCompleteStop($event)"
-            (skipStop)="handleSkipStop($event)"
-            (reportIncident)="reportIncident()"
-            (acknowledgeIncident)="handleAcknowledge($event)"
-            (resolveIncident)="handleResolve($event)"
-            (refreshVehicle)="refreshTrip()">
-          </app-driver-right-panel>
+          </div>
+        </div>
+
+        <!-- 25%: Support Information -->
+        <div class="mid-right">
+          <div class="section-heading">
+            <mat-icon>info</mat-icon> Support Information
+          </div>
+
+          <!-- Emergency Contact -->
+          <div class="sup-card emergency">
+            <div class="sup-card-head">
+              <div class="sup-icon" style="background:#fce8e6">
+                <mat-icon style="color:#ea4335">phone_in_talk</mat-icon>
+              </div>
+              <span class="sup-title">Emergency Contact</span>
+            </div>
+            <p class="sup-text">For urgent issues, call:</p>
+            <a class="sup-phone" href="tel:18007877678">1-800-SUPPORT</a>
+            <p class="sup-avail">Available 24 / 7</p>
+          </div>
+
+          <!-- System Status -->
+          <div class="sup-card status">
+            <div class="sup-card-head">
+              <div class="sup-icon" style="background:#e6f4ea">
+                <mat-icon style="color:#34a853">check_circle</mat-icon>
+              </div>
+              <span class="sup-title">System Status</span>
+            </div>
+            <div class="sys-status-row">
+              <span class="sys-dot"></span>
+              <span class="sys-label">All systems operational</span>
+            </div>
+            <div class="sys-items">
+              <div class="sys-item"><span class="material-icons">videocam</span>Camera API<span class="sys-ok">OK</span></div>
+              <div class="sys-item"><span class="material-icons">cloud</span>Cloud Sync<span class="sys-ok">OK</span></div>
+              <div class="sys-item"><span class="material-icons">gps_fixed</span>GPS Service<span class="sys-ok">OK</span></div>
+            </div>
+          </div>
+
+          <!-- Quick Tips -->
+          <div class="sup-card tips">
+            <div class="sup-card-head">
+              <div class="sup-icon" style="background:#fef7e0">
+                <mat-icon style="color:#f9ab00">lightbulb</mat-icon>
+              </div>
+              <span class="sup-title">Quick Tips</span>
+            </div>
+            <ul class="tips-list">
+              <li><mat-icon>check</mat-icon>Always check power connections first</li>
+              <li><mat-icon>check</mat-icon>Ensure SD card has sufficient space</li>
+              <li><mat-icon>check</mat-icon>Keep camera lens clean</li>
+              <li><mat-icon>check</mat-icon>Update software regularly</li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Content area ── -->
+      <div class="content-area">
+        <app-driver-chat
+          class="chat-area"
+          [messages]="messages"
+          [isTyping]="isTyping"
+          (sendMessage)="handleUserMessage($event)"
+          (actionClicked)="handleAction($event)">
+        </app-driver-chat>
+
+        <app-driver-right-panel
+          class="right-area"
+          [trip]="trip"
+          [incidents]="incidents"
+          [activeTab]="activePanel"
+          (completeStop)="handleCompleteStop($event)"
+          (skipStop)="handleSkipStop($event)"
+          (reportIncident)="reportIncident()"
+          (acknowledgeIncident)="handleAcknowledge($event)"
+          (resolveIncident)="handleResolve($event)"
+          (refreshVehicle)="refreshTrip()">
+        </app-driver-right-panel>
+      </div>
+
+    </div>
+
+    <!-- Step 1: Category -->
+    <div class="modal-backdrop" *ngIf="showModal" (click)="closeAll()">
+      <div class="modal-box" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+          <div class="modal-title"><span class="material-icons">build_circle</span> Select Category</div>
+          <button class="close-btn" (click)="closeAll()"><span class="material-icons">close</span></button>
+        </div>
+        <p class="modal-sub">Choose the issue category to begin AI-guided troubleshooting</p>
+        <div class="cat-grid">
+          <button *ngFor="let c of categories" class="cat-card" (click)="selectCategory(c)">
+            <div class="cat-icon" [style.background]="c.color+'18'"><span class="material-icons" [style.color]="c.color">{{c.icon}}</span></div>
+            <div class="cat-name">{{c.label}}</div>
+            <div class="cat-desc">{{c.desc}}</div>
+            <span class="material-icons cat-arrow">arrow_forward</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Vehicle & Contact Details -->
+    <div class="modal-backdrop" *ngIf="showDetailsModal" (click)="closeAll()">
+      <div class="modal-box details-box" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+          <button class="back-btn" (click)="showDetailsModal=false; showModal=true"><span class="material-icons">arrow_back</span></button>
+          <div class="modal-title">
+            <div class="cat-badge" [style.background]="selectedCategory?.color+'18'"><span class="material-icons" [style.color]="selectedCategory?.color">{{selectedCategory?.icon}}</span></div>
+            Vehicle &amp; Contact Details
+          </div>
+          <button class="close-btn" (click)="closeAll()"><span class="material-icons">close</span></button>
+        </div>
+        <p class="modal-sub">Provide details for <strong>{{selectedCategory?.label}}</strong> troubleshooting</p>
+        <form class="details-form" (ngSubmit)="submitDetails()">
+          <div class="field-group">
+            <label>Vehicle ID <span class="req">*</span></label>
+            <div class="input-wrap" [class.err]="submitted && !form.vehicleId">
+              <span class="material-icons fi">directions_car</span>
+              <input type="text" [(ngModel)]="form.vehicleId" name="vehicleId" placeholder="e.g. VH-TRK-007">
+            </div>
+            <span class="field-err" *ngIf="submitted && !form.vehicleId">Vehicle ID is required</span>
+          </div>
+          <div class="field-group">
+            <label>Country <span class="req">*</span></label>
+            <div class="select-wrap" [class.err]="submitted && !form.country">
+              <span class="material-icons fi">public</span>
+              <select [(ngModel)]="form.country" name="country">
+                <option value="">Select country...</option>
+                <option *ngFor="let c of countryList" [value]="c">{{c}}</option>
+              </select>
+              <span class="material-icons sa">expand_more</span>
+            </div>
+            <span class="field-err" *ngIf="submitted && !form.country">Country is required</span>
+          </div>
+          <div class="field-group">
+            <label>Contact Number <span class="req">*</span></label>
+            <div class="input-wrap" [class.err]="submitted && !form.contactNo">
+              <span class="material-icons fi">phone</span>
+              <input type="tel" [(ngModel)]="form.contactNo" name="contactNo" placeholder="e.g. +1 555 000 0000">
+            </div>
+            <span class="field-err" *ngIf="submitted && !form.contactNo">Contact number is required</span>
+          </div>
+          <div class="field-group">
+            <label>Complete Address <span class="req">*</span></label>
+            <div class="textarea-wrap" [class.err]="submitted && !form.address">
+              <span class="material-icons fi ta-icon">location_on</span>
+              <textarea [(ngModel)]="form.address" name="address" rows="3" placeholder="Street, City, State, ZIP"></textarea>
+            </div>
+            <span class="field-err" *ngIf="submitted && !form.address">Address is required</span>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-outline" (click)="showDetailsModal=false; showModal=true">Back</button>
+            <button type="submit" class="btn-primary"><span class="material-icons">arrow_forward</span> Next: Describe Issue</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Step 3: Describe Issue -->
+    <div class="modal-backdrop" *ngIf="showDescribeModal" (click)="closeAll()">
+      <div class="modal-box details-box" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+          <button class="back-btn" (click)="showDescribeModal=false; showDetailsModal=true"><span class="material-icons">arrow_back</span></button>
+          <div class="modal-title">
+            <div class="cat-badge" [style.background]="selectedCategory?.color+'18'"><span class="material-icons" [style.color]="selectedCategory?.color">{{selectedCategory?.icon}}</span></div>
+            Describe the Issue
+          </div>
+          <button class="close-btn" (click)="closeAll()"><span class="material-icons">close</span></button>
+        </div>
+        <p class="modal-sub">Tell us what's happening with <strong>{{selectedCategory?.label}}</strong></p>
+        <div class="steps-bar">
+          <div class="step done"><span class="material-icons">check_circle</span> Category</div>
+          <div class="step-line"></div>
+          <div class="step done"><span class="material-icons">check_circle</span> Details</div>
+          <div class="step-line"></div>
+          <div class="step active"><span class="step-num">3</span> Describe</div>
+        </div>
+        <div class="input-tabs">
+          <button class="itab" [class.active]="describeTab==='text'" (click)="describeTab='text'"><span class="material-icons">edit_note</span> Type</button>
+          <button class="itab" [class.active]="describeTab==='voice'" (click)="describeTab='voice'; startVoice()"><span class="material-icons">mic</span> Voice</button>
+          <button class="itab" [class.active]="describeTab==='image'" (click)="describeTab='image'"><span class="material-icons">add_photo_alternate</span> Image</button>
+        </div>
+        <div *ngIf="describeTab==='text'" class="describe-body">
+          <div class="textarea-wrap" [class.err]="descSubmitted && !issueDescription">
+            <span class="material-icons fi ta-icon">description</span>
+            <textarea [(ngModel)]="issueDescription" name="issueDescription" rows="5" placeholder="Describe the issue in detail — what happened, when it started, any error messages..."></textarea>
+          </div>
+          <span class="field-err" *ngIf="descSubmitted && !issueDescription">Please describe the issue</span>
+          <div class="char-count">{{issueDescription.length}} / 1000</div>
+        </div>
+        <div *ngIf="describeTab==='voice'" class="describe-body voice-body">
+          <div class="voice-ring" [class.listening]="isListening"><span class="material-icons">{{isListening ? 'mic' : 'mic_none'}}</span></div>
+          <p class="voice-status">{{isListening ? 'Listening... speak now' : voiceTranscript ? 'Recording complete' : 'Click the mic to start'}}</p>
+          <div class="voice-transcript" *ngIf="voiceTranscript"><span class="material-icons">format_quote</span>{{voiceTranscript}}</div>
+          <div class="voice-actions">
+            <button class="btn-outline" *ngIf="!isListening" (click)="startVoice()"><span class="material-icons">mic</span> {{voiceTranscript ? 'Re-record' : 'Start Recording'}}</button>
+            <button class="btn-danger" *ngIf="isListening" (click)="stopVoice()"><span class="material-icons">stop</span> Stop</button>
+            <button class="btn-outline" *ngIf="voiceTranscript" (click)="useTranscript()"><span class="material-icons">check</span> Use This</button>
+          </div>
+        </div>
+        <div *ngIf="describeTab==='image'" class="describe-body image-body">
+          <div class="drop-zone" [class.has-image]="uploadedImages.length>0" (click)="fileInput.click()" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
+            <input #fileInput type="file" accept="image/*" multiple hidden (change)="onFileChange($event)">
+            <ng-container *ngIf="uploadedImages.length===0">
+              <span class="material-icons dz-icon">cloud_upload</span>
+              <p class="dz-text">Drag & drop images here or <span class="dz-link">browse</span></p>
+              <p class="dz-hint">PNG, JPG, WEBP up to 10MB each</p>
+            </ng-container>
+            <div class="img-previews" *ngIf="uploadedImages.length>0" (click)="$event.stopPropagation()">
+              <div *ngFor="let img of uploadedImages; let i=index" class="img-thumb">
+                <img [src]="img.url" [alt]="img.name">
+                <button class="img-remove" (click)="removeImage(i)"><span class="material-icons">close</span></button>
+                <span class="img-name">{{img.name}}</span>
+              </div>
+              <div class="img-add" (click)="fileInput.click()"><span class="material-icons">add</span></div>
+            </div>
+          </div>
+          <div class="textarea-wrap" style="margin-top:12px; align-items:flex-start">
+            <span class="material-icons fi ta-icon">edit_note</span>
+            <textarea [(ngModel)]="issueDescription" name="imgNote" rows="2" placeholder="Add a note about the images (optional)"></textarea>
+          </div>
+        </div>
+        <div class="form-actions" style="margin-top:20px">
+          <button class="btn-outline" (click)="showDescribeModal=false; showDetailsModal=true">Back</button>
+          <button class="btn-primary" (click)="submitIssue()"><span class="material-icons">send</span> Start Troubleshooting</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Troubleshooting Steps -->
+    <div class="modal-backdrop" *ngIf="showStepsModal" (click)="$event.stopPropagation()">
+      <div class="modal-box steps-modal" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+          <div class="modal-title">
+            <div class="cat-badge" [style.background]="selectedCategory?.color+'18'"><span class="material-icons" [style.color]="selectedCategory?.color">{{selectedCategory?.icon}}</span></div>
+            Troubleshooting Steps
+          </div>
+          <button class="close-btn" (click)="closeAll()"><span class="material-icons">close</span></button>
+        </div>
+        <div class="ts-progress-wrap">
+          <div class="ts-progress-bar"><div class="ts-progress-fill" [style.width.%]="stepsProgress"></div></div>
+          <span class="ts-progress-label">Step {{currentStepIdx+1}} of {{activeSteps.length}}</span>
+        </div>
+        <div class="ts-loading" *ngIf="stepsLoading"><div class="spinner"></div><p>Analysing issue and generating steps...</p></div>
+        <ng-container *ngIf="!stepsLoading && currentStep">
+          <div class="ts-step-card">
+            <div class="ts-step-num" [style.background]="selectedCategory?.color+'18'" [style.color]="selectedCategory?.color">{{currentStepIdx+1}}</div>
+            <div class="ts-step-body">
+              <div class="ts-step-title">{{currentStep.title}}</div>
+              <div class="ts-step-desc">{{currentStep.desc}}</div>
+              <div class="ts-step-tip" *ngIf="currentStep.tip"><span class="material-icons">lightbulb</span> {{currentStep.tip}}</div>
+            </div>
+          </div>
+          <div class="ts-question">
+            <p class="ts-q-label">Did this step resolve the issue?</p>
+            <div class="ts-q-actions">
+              <button class="btn-success" (click)="stepResolved()"><span class="material-icons">check_circle</span> Yes, Issue Resolved!</button>
+              <button class="btn-outline" (click)="stepNotHelped()"><span class="material-icons">arrow_forward</span> {{currentStepIdx < activeSteps.length-1 ? 'No, Try Next Step' : 'No, Still Not Resolved'}}</button>
+            </div>
+          </div>
+          <div class="ts-done-list" *ngIf="completedSteps.length>0">
+            <div class="ts-done-label">Tried so far:</div>
+            <div *ngFor="let s of completedSteps" class="ts-done-item"><span class="material-icons">remove_done</span> {{s.title}}</div>
+          </div>
+        </ng-container>
+        <div class="ts-exhausted" *ngIf="!stepsLoading && !currentStep && !issueResolved">
+          <span class="material-icons">sentiment_dissatisfied</span>
+          <h3>Issue Not Resolved</h3>
+          <p>We've gone through all {{activeSteps.length}} troubleshooting steps. Let's raise a support ticket.</p>
+          <button class="btn-primary" (click)="openRaiseTicket()"><span class="material-icons">confirmation_number</span> Raise a Ticket</button>
+        </div>
+        <div class="ts-resolved" *ngIf="issueResolved">
+          <span class="material-icons">celebration</span>
+          <h3>Issue Resolved! 🎉</h3>
+          <p>Great! The issue with <strong>{{selectedCategory?.label}}</strong> has been resolved.</p>
+          <button class="btn-success" (click)="closeAll()"><span class="material-icons">check</span> Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5: Raise Ticket -->
+    <div class="modal-backdrop" *ngIf="showTicketModal" (click)="$event.stopPropagation()">
+      <div class="modal-box details-box" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+          <button class="back-btn" (click)="showTicketModal=false; showStepsModal=true"><span class="material-icons">arrow_back</span></button>
+          <div class="modal-title"><span class="material-icons" style="color:#ea4335">confirmation_number</span> Raise Support Ticket</div>
+          <button class="close-btn" (click)="closeAll()"><span class="material-icons">close</span></button>
+        </div>
+        <p class="modal-sub">All troubleshooting steps failed. We'll create a ticket for <strong>{{selectedCategory?.label}}</strong>.</p>
+        <form class="details-form" (ngSubmit)="submitTicket()">
+          <div class="field-group">
+            <label>Ticket Title <span class="req">*</span></label>
+            <div class="input-wrap" [class.err]="ticketSubmitted && !ticket.title">
+              <span class="material-icons fi">title</span>
+              <input type="text" [(ngModel)]="ticket.title" name="tTitle" placeholder="Brief summary of the issue">
+            </div>
+            <span class="field-err" *ngIf="ticketSubmitted && !ticket.title">Title is required</span>
+          </div>
+          <div class="field-group">
+            <label>Priority</label>
+            <div class="select-wrap">
+              <span class="material-icons fi">flag</span>
+              <select [(ngModel)]="ticket.priority" name="tPriority">
+                <option value="low">🟢 Low</option>
+                <option value="medium">🟡 Medium</option>
+                <option value="high">🔴 High</option>
+                <option value="critical">🟣 Critical</option>
+              </select>
+              <span class="material-icons sa">expand_more</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Description</label>
+            <div class="textarea-wrap">
+              <span class="material-icons fi ta-icon">description</span>
+              <textarea [(ngModel)]="ticket.description" name="tDesc" rows="4" placeholder="Full description of the issue and steps already tried..."></textarea>
+            </div>
+          </div>
+          <div class="ticket-meta-row">
+            <div class="ticket-meta-item"><span class="material-icons">directions_car</span> {{form.vehicleId}}</div>
+            <div class="ticket-meta-item"><span class="material-icons">public</span> {{form.country}}</div>
+            <div class="ticket-meta-item"><span class="material-icons">phone</span> {{form.contactNo}}</div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-outline" (click)="showTicketModal=false; showStepsModal=true">Back</button>
+            <button type="submit" class="btn-primary"><span class="material-icons">send</span> Submit Ticket</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Ticket Success -->
+    <div class="modal-backdrop" *ngIf="showTicketSuccess" (click)="$event.stopPropagation()">
+      <div class="modal-box success-box" (click)="$event.stopPropagation()">
+        <span class="material-icons success-icon">check_circle</span>
+        <h3>Ticket Raised Successfully!</h3>
+        <p>Your support ticket <strong>{{createdTicketId}}</strong> has been created.</p>
+        <p class="success-sub">Our team will contact you at <strong>{{form.contactNo}}</strong> shortly.</p>
+        <div class="success-actions">
+          <button class="btn-outline" (click)="closeAll()">Close</button>
+          <button class="btn-primary" (click)="goToTickets()"><span class="material-icons">confirmation_number</span> View Tickets</button>
         </div>
       </div>
     </div>
   `,
   styles: [`
-    :host { display:block; height:calc(100vh - 64px); }
+    :host { display:flex; flex-direction:column; height:100%; overflow:hidden; }
 
-    .app-shell {
-      display:flex; height:100%;
-      background:#0f1117; color:#e2e8f0;
-      font-family:'Inter','Roboto',sans-serif;
+    .driver-page {
+      display:flex; flex-direction:column; height:100%;
+      background:#f8f9fa; font-family:'Google Sans','Roboto',sans-serif;
     }
 
-    /* Sidebar */
-    .sidebar {
-      width:220px; min-width:220px; background:#1a1d27;
-      border-right:1px solid #2d3148; display:flex; flex-direction:column;
-      transition:width 0.2s ease,min-width 0.2s ease; overflow:hidden;
-    }
-    .sidebar.collapsed { width:56px; min-width:56px; }
-    .sidebar-logo {
-      display:flex; align-items:center; gap:10px;
-      padding:20px 16px 16px; border-bottom:1px solid #2d3148;
-    }
-    .logo-icon { color:#10b981; font-size:28px; width:28px; height:28px; }
-    .logo-text {
-      font-size:16px; font-weight:700; white-space:nowrap;
-      background:linear-gradient(135deg,#10b981,#059669);
-      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-    }
-    .sidebar-nav { flex:1; padding:12px 8px; display:flex; flex-direction:column; gap:4px; }
-    .nav-item {
-      display:flex; align-items:center; gap:10px; padding:10px 12px;
-      border-radius:8px; border:none; background:transparent; color:#94a3b8;
-      cursor:pointer; font-size:14px; font-weight:500; transition:all 0.15s;
-      white-space:nowrap; width:100%; text-align:left; position:relative;
-    }
-    .nav-item:hover { background:#2d3148; color:#e2e8f0; }
-    .nav-item.active { background:#2d3148; color:#10b981; }
-    .nav-item.active mat-icon { color:#10b981; }
-    .nav-item mat-icon { font-size:20px; width:20px; height:20px; flex-shrink:0; }
-    .nav-badge { margin-left:auto; background:#ef4444; color:white; border-radius:10px; padding:1px 7px; font-size:11px; font-weight:600; }
-    .nav-badge-dot { position:absolute; top:8px; right:8px; width:8px; height:8px; background:#ef4444; border-radius:50%; }
-    .sidebar-footer { padding:8px; border-top:1px solid #2d3148; display:flex; flex-direction:column; gap:4px; }
-    .collapse-btn { color:#64748b; }
-
-    /* Main */
-    .main-content { flex:1; display:flex; flex-direction:column; overflow:hidden; }
-
-    /* Topbar */
-    .topbar {
+    /* ── Header ── */
+    .portal-header {
       display:flex; align-items:center; justify-content:space-between;
-      padding:12px 20px; background:#1a1d27; border-bottom:1px solid #2d3148; flex-shrink:0;
+      padding:0 24px; height:64px; flex-shrink:0;
+      background:#fff; border-bottom:1px solid #dadce0;
+      box-shadow:0 1px 4px rgba(60,64,67,.12);
     }
-    .topbar-left { display:flex; align-items:center; gap:12px; }
-    .topbar-right { display:flex; align-items:center; gap:4px; }
-    .topbar-right button { color:#94a3b8; }
-    .topbar-right button:hover { color:#e2e8f0; }
 
-    .status-pill {
-      display:flex; align-items:center; gap:6px; padding:4px 12px;
-      border-radius:20px; background:#2d3148; font-size:13px; font-weight:500; color:#64748b;
+    /* Brand */
+    .header-brand { display:flex; align-items:center; gap:12px; }
+    .brand-icon {
+      width:42px; height:42px; border-radius:10px;
+      background:linear-gradient(135deg,#1a73e8,#0d47a1);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 2px 6px rgba(26,115,232,.35);
     }
-    .status-pill.trip-en-route  { color:#10b981; }
-    .status-pill.trip-on-site   { color:#6366f1; }
-    .status-pill.trip-completed { color:#22c55e; }
-    .status-pill.trip-delayed   { color:#ef4444; }
+    .brand-icon mat-icon { color:#fff; font-size:24px; }
+    .brand-text { display:flex; flex-direction:column; }
+    .brand-title {
+      font-size:17px; font-weight:700; color:#202124;
+      font-family:'Google Sans',sans-serif; line-height:1.2;
+      letter-spacing:-0.2px;
+    }
+    .brand-sub { font-size:11px; color:#5f6368; font-weight:400; letter-spacing:0.1px; }
+
+    /* Centre */
+    .header-centre { display:flex; align-items:center; gap:10px; }
+    .status-pill {
+      display:flex; align-items:center; gap:6px;
+      padding:5px 14px; border-radius:20px;
+      background:#f1f3f4; font-size:13px; font-weight:500; color:#5f6368;
+      border:1px solid #dadce0;
+    }
+    .status-pill.trip-en-route  { background:#e8f0fe; color:#1a73e8; border-color:#c5d8fb; }
+    .status-pill.trip-on-site   { background:#e6f4ea; color:#137333; border-color:#a8d5b5; }
+    .status-pill.trip-completed { background:#e6f4ea; color:#137333; border-color:#a8d5b5; }
+    .status-pill.trip-delayed   { background:#fce8e6; color:#c5221f; border-color:#f5c6c2; }
     .status-dot {
       width:7px; height:7px; border-radius:50%; background:currentColor;
       animation:pulse-dot 2s infinite;
     }
-    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    .trip-id { font-size:12px; color:#80868b; font-family:'Roboto Mono',monospace; }
 
-    .trip-id { font-size:13px; color:#64748b; font-family:monospace; }
-    .driver-name { display:flex; align-items:center; gap:4px; font-size:13px; color:#94a3b8; }
-    .driver-name mat-icon { font-size:15px; width:15px; height:15px; }
+    /* Right */
+    .header-right { display:flex; align-items:center; gap:6px; }
+    .hdr-btn {
+      width:36px; height:36px; border-radius:50%; border:none;
+      background:transparent; color:#5f6368; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:all 0.15s;
+    }
+    .hdr-btn:hover { background:#f1f3f4; color:#202124; }
+    .hdr-btn.warn:hover { background:#fce8e6; color:#ea4335; }
+    .hdr-btn mat-icon { font-size:20px; }
+    .divider-v { width:1px; height:28px; background:#dadce0; margin:0 6px; }
 
-    /* Content */
-    .content-area { flex:1; display:grid; grid-template-columns:1fr 380px; overflow:hidden; }
-    .chat-area { overflow:hidden; }
-    .right-area { border-left:1px solid #2d3148; overflow:hidden; }
+    .user-chip { display:flex; align-items:center; gap:10px; padding:6px 12px 6px 6px; border-radius:24px; border:1px solid #dadce0; background:#f8f9fa; cursor:default; }
+    .user-avatar {
+      width:32px; height:32px; border-radius:50%;
+      background:#1a73e8; color:#fff;
+      display:flex; align-items:center; justify-content:center;
+      font-size:14px; font-weight:700; flex-shrink:0;
+    }
+    .user-info { display:flex; flex-direction:column; }
+    .user-name { font-size:13px; font-weight:500; color:#202124; line-height:1.2; }
+    .user-role { font-size:11px; color:#5f6368; }
+
+    /* ── Welcome Card ── */
+    .welcome-card {
+      display:flex; align-items:center; justify-content:space-between; gap:20px;
+      margin:16px 20px 0; padding:18px 24px;
+      background:#fff; border:1px solid #dadce0; border-radius:12px;
+      box-shadow:0 1px 4px rgba(60,64,67,.1); border-left:4px solid #1a73e8;
+      flex-shrink:0;
+    }
+    .welcome-left { display:flex; align-items:center; gap:16px; }
+    .welcome-icon {
+      width:48px; height:48px; border-radius:12px;
+      background:linear-gradient(135deg,#e8f0fe,#c5d8fb);
+      display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    }
+    .welcome-icon mat-icon { font-size:26px; color:#1a73e8; }
+    .welcome-heading { font-size:17px; font-weight:600; color:#202124; margin:0 0 4px; font-family:'Google Sans',sans-serif; }
+    .welcome-desc { font-size:13px; color:#5f6368; margin:0; line-height:1.5; max-width:480px; }
+    .welcome-actions { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+    .wa-btn {
+      display:flex; align-items:center; gap:6px; padding:9px 18px;
+      border-radius:6px; font-size:13px; font-weight:500;
+      cursor:pointer; transition:all 0.15s; font-family:inherit; white-space:nowrap;
+    }
+    .wa-btn mat-icon { font-size:16px; }
+    .wa-btn.primary { background:#1a73e8; color:#fff; border:none; }
+    .wa-btn.primary:hover { background:#1557b0; box-shadow:0 1px 4px rgba(0,0,0,.2); }
+    .wa-btn.outline { background:#fff; color:#1a73e8; border:1px solid #dadce0; }
+    .wa-btn.outline:hover { background:#e8f0fe; border-color:#1a73e8; }
+
+    /* ── Sub-nav ── */
+    .sub-nav {
+      display:flex; align-items:center; gap:0;
+      background:#fff; border-bottom:1px solid #dadce0;
+      padding:0 20px; flex-shrink:0;
+    }
+    .snav-tab {
+      display:flex; align-items:center; gap:6px;
+      padding:12px 16px; border:none; background:transparent;
+      color:#5f6368; font-size:13px; font-weight:500;
+      cursor:pointer; border-bottom:3px solid transparent;
+      transition:all 0.15s; font-family:inherit; white-space:nowrap;
+      position:relative;
+    }
+    .snav-tab mat-icon { font-size:16px; width:16px; height:16px; }
+    .snav-tab:hover { color:#1a73e8; background:#f8f9fa; }
+    .snav-tab.active { color:#1a73e8; border-bottom-color:#1a73e8; }
+    .snav-chip {
+      font-size:11px; font-weight:600; padding:1px 7px;
+      border-radius:10px; background:#e8f0fe; color:#1a73e8; margin-left:2px;
+    }
+    .snav-badge {
+      font-size:10px; font-weight:700; padding:1px 6px;
+      border-radius:10px; background:#ea4335; color:#fff; margin-left:2px;
+    }
+
+    /* ── Mid row ── */
+    .mid-row {
+      display:grid; grid-template-columns:3fr 1fr; gap:16px;
+      padding:16px 20px 0; flex-shrink:0;
+    }
+    .section-heading {
+      display:flex; align-items:center; gap:8px;
+      font-size:14px; font-weight:600; color:#202124;
+      font-family:'Google Sans',sans-serif; margin-bottom:12px;
+    }
+    .section-heading mat-icon { font-size:18px; color:#1a73e8; }
+
+    /* Quick Actions */
+    .qa-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .qa-card {
+      display:flex; align-items:center; gap:14px; padding:16px;
+      background:#fff; border:1px solid #dadce0; border-radius:10px;
+      cursor:pointer; transition:all 0.15s;
+      box-shadow:0 1px 3px rgba(60,64,67,.08);
+    }
+    .qa-card:hover { border-color:#1a73e8; box-shadow:0 2px 8px rgba(26,115,232,.15); transform:translateY(-1px); }
+    .qa-icon { width:44px; height:44px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+    .qa-icon mat-icon { font-size:24px; }
+    .qa-body { flex:1; }
+    .qa-title { font-size:14px; font-weight:600; color:#202124; margin-bottom:3px; }
+    .qa-desc  { font-size:12px; color:#5f6368; line-height:1.4; }
+    .qa-arrow { font-size:18px !important; color:#dadce0; transition:color 0.15s; flex-shrink:0; }
+    .qa-card:hover .qa-arrow { color:#1a73e8; }
+
+    /* Support Info */
+    .mid-right { display:flex; flex-direction:column; gap:10px; }
+    .sup-card { background:#fff; border:1px solid #dadce0; border-radius:10px; padding:14px 16px; box-shadow:0 1px 3px rgba(60,64,67,.08); }
+    .sup-card-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .sup-icon { width:32px; height:32px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+    .sup-icon mat-icon { font-size:18px; }
+    .sup-title { font-size:13px; font-weight:600; color:#202124; }
+    .sup-card.emergency { border-left:3px solid #ea4335; }
+    .sup-text  { font-size:12px; color:#5f6368; margin:0 0 4px; }
+    .sup-phone { display:block; font-size:15px; font-weight:700; color:#ea4335; text-decoration:none; margin-bottom:3px; }
+    .sup-phone:hover { text-decoration:underline; }
+    .sup-avail { font-size:11px; color:#80868b; margin:0; }
+    .sup-card.status { border-left:3px solid #34a853; }
+    .sys-status-row { display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+    .sys-dot { width:8px; height:8px; border-radius:50%; background:#34a853; animation:pulse-dot 2s infinite; flex-shrink:0; }
+    .sys-label { font-size:12px; font-weight:500; color:#137333; }
+    .sys-items { display:flex; flex-direction:column; gap:4px; }
+    .sys-item { display:flex; align-items:center; gap:6px; font-size:12px; color:#5f6368; }
+    .sys-item .material-icons { font-size:13px; color:#9aa0a6; }
+    .sys-ok { margin-left:auto; font-size:11px; font-weight:600; color:#34a853; }
+    .sup-card.tips { border-left:3px solid #fbbc04; }
+    .tips-list { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px; }
+    .tips-list li { display:flex; align-items:flex-start; gap:6px; font-size:12px; color:#5f6368; line-height:1.4; }
+    .tips-list li mat-icon { font-size:14px; color:#34a853; flex-shrink:0; margin-top:1px; }
+
+    /* ── Content ── */
+    .content-area {
+      flex:1; display:grid; grid-template-columns:1fr 400px;
+      overflow:hidden; min-height:0;
+    }
+    .chat-area  { overflow:hidden; border-right:1px solid #dadce0; }
+    .right-area { overflow:hidden; }
 
     @media (max-width:1024px) {
       .content-area { grid-template-columns:1fr; }
       .right-area { display:none; }
+      .header-centre { display:none; }
     }
+
+    /* ── Modals (same as dashboard) ── */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(32,33,36,.5); display:flex; align-items:center; justify-content:center; z-index:1000; animation:bdin 0.15s ease; }
+    @keyframes bdin { from{opacity:0} to{opacity:1} }
+    .modal-box { background:#fff; border-radius:12px; padding:28px; width:660px; max-width:95vw; max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(60,64,67,.3); animation:mup 0.2s ease; }
+    @keyframes mup { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+    .modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+    .modal-title { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:500; color:#202124; font-family:'Google Sans',sans-serif; }
+    .modal-title .material-icons { color:#1a73e8; font-size:22px; }
+    .close-btn { background:transparent; border:none; cursor:pointer; color:#5f6368; padding:4px; border-radius:50%; display:flex; align-items:center; transition:all 0.15s; }
+    .close-btn:hover { background:#f1f3f4; color:#202124; }
+    .close-btn .material-icons { font-size:20px; }
+    .modal-sub { font-size:14px; color:#5f6368; margin:0 0 20px; }
+    .modal-sub strong { color:#202124; }
+    .cat-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .cat-card { display:flex; flex-direction:column; gap:6px; padding:16px 16px 14px; background:#fff; border:1px solid #dadce0; border-radius:8px; cursor:pointer; text-align:left; transition:all 0.15s; box-shadow:0 1px 2px rgba(60,64,67,.06); position:relative; font-family:'Google Sans',sans-serif; }
+    .cat-card:hover { border-color:#1a73e8; box-shadow:0 2px 8px rgba(26,115,232,.15); transform:translateY(-1px); }
+    .cat-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-bottom:4px; flex-shrink:0; }
+    .cat-icon .material-icons { font-size:24px; }
+    .cat-name { font-size:14px; font-weight:500; color:#202124; }
+    .cat-desc { font-size:12px; color:#5f6368; line-height:1.4; padding-right:20px; }
+    .cat-arrow { position:absolute; bottom:14px; right:12px; font-size:16px !important; color:#dadce0; transition:color 0.15s; }
+    .cat-card:hover .cat-arrow { color:#1a73e8; }
+    .details-box { width:520px; }
+    .back-btn { background:transparent; border:none; cursor:pointer; color:#5f6368; padding:4px; border-radius:50%; display:flex; align-items:center; transition:all 0.15s; margin-right:4px; }
+    .back-btn:hover { background:#f1f3f4; color:#202124; }
+    .back-btn .material-icons { font-size:20px; }
+    .cat-badge { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; margin-right:8px; flex-shrink:0; }
+    .cat-badge .material-icons { font-size:18px; }
+    .details-form { display:flex; flex-direction:column; gap:18px; }
+    .field-group { display:flex; flex-direction:column; gap:5px; }
+    label { font-size:13px; font-weight:500; color:#5f6368; }
+    .req { color:#ea4335; }
+    .input-wrap, .select-wrap, .textarea-wrap { display:flex; align-items:center; background:#fff; border:1px solid #dadce0; border-radius:4px; transition:border-color 0.15s, box-shadow 0.15s; box-shadow:0 1px 2px rgba(60,64,67,.06); }
+    .input-wrap:focus-within, .select-wrap:focus-within, .textarea-wrap:focus-within { border-color:#1a73e8; box-shadow:0 0 0 2px #e8f0fe; }
+    .input-wrap.err, .select-wrap.err, .textarea-wrap.err { border-color:#ea4335; }
+    .fi { color:#9aa0a6; font-size:18px; padding:0 10px; flex-shrink:0; }
+    .ta-icon { align-self:flex-start; padding-top:10px; }
+    .input-wrap input, .textarea-wrap textarea { flex:1; border:none; outline:none; background:transparent; color:#202124; font-size:14px; padding:11px 10px 11px 0; font-family:'Google Sans','Roboto',sans-serif; resize:none; }
+    .input-wrap input::placeholder, .textarea-wrap textarea::placeholder { color:#9aa0a6; }
+    .select-wrap { position:relative; }
+    .select-wrap select { flex:1; border:none; outline:none; background:transparent; color:#202124; font-size:14px; padding:11px 32px 11px 0; font-family:'Google Sans','Roboto',sans-serif; appearance:none; cursor:pointer; }
+    .sa { position:absolute; right:8px; color:#5f6368; font-size:18px; pointer-events:none; }
+    .field-err { font-size:12px; color:#ea4335; }
+    .form-actions { display:flex; justify-content:flex-end; gap:10px; padding-top:4px; }
+    .btn-outline { padding:9px 20px; border-radius:4px; border:1px solid #dadce0; background:#fff; color:#1a73e8; font-size:14px; font-weight:500; cursor:pointer; transition:all 0.15s; font-family:inherit; }
+    .btn-outline:hover { background:#e8f0fe; border-color:#1a73e8; }
+    .btn-primary { display:flex; align-items:center; gap:6px; padding:9px 20px; border-radius:4px; border:none; background:#1a73e8; color:#fff; font-size:14px; font-weight:500; cursor:pointer; transition:background 0.15s, box-shadow 0.15s; font-family:inherit; }
+    .btn-primary:hover { background:#1557b0; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+    .btn-primary .material-icons { font-size:16px; }
+    .steps-bar { display:flex; align-items:center; margin-bottom:20px; background:#f8f9fa; border-radius:8px; padding:10px 16px; }
+    .step { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:500; color:#9aa0a6; white-space:nowrap; }
+    .step.done { color:#34a853; } .step.done .material-icons { font-size:16px; }
+    .step.active { color:#1a73e8; }
+    .step-num { width:18px; height:18px; border-radius:50%; background:#1a73e8; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+    .step-line { flex:1; height:2px; background:#dadce0; margin:0 8px; min-width:20px; }
+    .input-tabs { display:flex; gap:8px; margin-bottom:16px; }
+    .itab { display:flex; align-items:center; gap:6px; padding:8px 16px; border-radius:20px; border:1px solid #dadce0; background:#fff; color:#5f6368; font-size:13px; font-weight:500; cursor:pointer; transition:all 0.15s; font-family:inherit; }
+    .itab .material-icons { font-size:16px; }
+    .itab:hover, .itab.active { border-color:#1a73e8; background:#e8f0fe; color:#1a73e8; }
+    .describe-body { animation:mup 0.15s ease; }
+    .char-count { font-size:11px; color:#9aa0a6; text-align:right; margin-top:4px; }
+    .voice-body { display:flex; flex-direction:column; align-items:center; gap:16px; padding:16px 0; }
+    .voice-ring { width:80px; height:80px; border-radius:50%; background:#e8f0fe; border:3px solid #dadce0; display:flex; align-items:center; justify-content:center; transition:all 0.3s; cursor:pointer; }
+    .voice-ring.listening { background:#fce8e6; border-color:#ea4335; animation:pulse-ring 1.2s infinite; }
+    @keyframes pulse-ring { 0%,100%{box-shadow:0 0 0 0 rgba(234,67,53,.3)} 50%{box-shadow:0 0 0 12px rgba(234,67,53,0)} }
+    .voice-ring .material-icons { font-size:36px; color:#1a73e8; }
+    .voice-ring.listening .material-icons { color:#ea4335; }
+    .voice-status { font-size:14px; color:#5f6368; margin:0; }
+    .voice-transcript { display:flex; align-items:flex-start; gap:8px; background:#f8f9fa; border:1px solid #dadce0; border-left:3px solid #1a73e8; border-radius:4px; padding:12px 14px; font-size:14px; color:#202124; width:100%; line-height:1.5; }
+    .voice-transcript .material-icons { color:#1a73e8; font-size:18px; flex-shrink:0; margin-top:1px; }
+    .voice-actions { display:flex; gap:8px; }
+    .btn-danger { display:flex; align-items:center; gap:6px; padding:9px 20px; border-radius:4px; border:none; background:#ea4335; color:#fff; font-size:14px; font-weight:500; cursor:pointer; transition:background 0.15s; font-family:inherit; }
+    .btn-danger:hover { background:#c5221f; }
+    .btn-danger .material-icons { font-size:16px; }
+    .image-body { display:flex; flex-direction:column; }
+    .drop-zone { border:2px dashed #dadce0; border-radius:8px; padding:32px 20px; text-align:center; cursor:pointer; transition:all 0.15s; background:#fafafa; }
+    .drop-zone:hover { border-color:#1a73e8; background:#e8f0fe; }
+    .drop-zone.has-image { padding:16px; border-style:solid; border-color:#1a73e8; }
+    .dz-icon { font-size:40px !important; color:#dadce0; display:block; margin:0 auto 8px; }
+    .dz-text { font-size:14px; color:#5f6368; margin:0 0 4px; }
+    .dz-link { color:#1a73e8; font-weight:500; }
+    .dz-hint { font-size:12px; color:#9aa0a6; margin:0; }
+    .img-previews { display:flex; flex-wrap:wrap; gap:10px; }
+    .img-thumb { position:relative; width:90px; display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .img-thumb img { width:90px; height:70px; object-fit:cover; border-radius:6px; border:1px solid #dadce0; }
+    .img-remove { position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; border:none; background:#ea4335; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .img-remove .material-icons { font-size:12px; }
+    .img-name { font-size:10px; color:#5f6368; text-align:center; width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .img-add { width:90px; height:70px; border-radius:6px; border:2px dashed #dadce0; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#9aa0a6; transition:all 0.15s; }
+    .img-add:hover { border-color:#1a73e8; color:#1a73e8; background:#e8f0fe; }
+    .img-add .material-icons { font-size:24px; }
+    .img-note-wrap { align-items:flex-start; margin-top:12px; }
+    .steps-modal { width:580px; }
+    .ts-progress-wrap { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+    .ts-progress-bar { flex:1; height:6px; background:#f1f3f4; border-radius:3px; overflow:hidden; }
+    .ts-progress-fill { height:100%; background:#1a73e8; border-radius:3px; transition:width 0.4s ease; }
+    .ts-progress-label { font-size:12px; color:#5f6368; white-space:nowrap; font-weight:500; }
+    .ts-loading { display:flex; flex-direction:column; align-items:center; gap:16px; padding:40px 0; color:#5f6368; font-size:14px; }
+    .spinner { width:32px; height:32px; border-radius:50%; border:3px solid #dadce0; border-top-color:#1a73e8; animation:spin 0.8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .ts-step-card { display:flex; gap:16px; padding:20px; background:#f8f9fa; border:1px solid #dadce0; border-radius:8px; margin-bottom:20px; animation:mup 0.2s ease; }
+    .ts-step-num { width:36px; height:36px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:700; }
+    .ts-step-body { flex:1; }
+    .ts-step-title { font-size:16px; font-weight:500; color:#202124; margin-bottom:6px; }
+    .ts-step-desc  { font-size:14px; color:#5f6368; line-height:1.6; margin-bottom:8px; }
+    .ts-step-tip { display:flex; align-items:flex-start; gap:6px; font-size:12px; color:#b06000; background:#fef7e0; border-radius:4px; padding:8px 10px; }
+    .ts-step-tip .material-icons { font-size:14px; color:#fbbc04; flex-shrink:0; margin-top:1px; }
+    .ts-question { margin-bottom:16px; }
+    .ts-q-label { font-size:14px; font-weight:500; color:#202124; margin:0 0 12px; }
+    .ts-q-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .btn-success { display:flex; align-items:center; gap:6px; padding:9px 20px; border-radius:4px; border:none; background:#34a853; color:#fff; font-size:14px; font-weight:500; cursor:pointer; transition:background 0.15s; font-family:inherit; }
+    .btn-success:hover { background:#2d9249; }
+    .btn-success .material-icons { font-size:16px; }
+    .ts-done-list { border-top:1px solid #dadce0; padding-top:12px; }
+    .ts-done-label { font-size:11px; font-weight:600; color:#9aa0a6; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px; }
+    .ts-done-item { display:flex; align-items:center; gap:6px; font-size:13px; color:#80868b; padding:3px 0; }
+    .ts-done-item .material-icons { font-size:14px; color:#dadce0; }
+    .ts-exhausted, .ts-resolved { text-align:center; padding:32px 20px; animation:mup 0.2s ease; }
+    .ts-exhausted .material-icons { font-size:48px; color:#ea4335; display:block; margin:0 auto 12px; }
+    .ts-resolved  .material-icons { font-size:48px; color:#34a853; display:block; margin:0 auto 12px; }
+    .ts-exhausted h3, .ts-resolved h3 { font-size:18px; font-weight:500; color:#202124; margin:0 0 8px; }
+    .ts-exhausted p, .ts-resolved p { font-size:14px; color:#5f6368; margin:0 0 20px; }
+    .ts-resolved p strong { color:#202124; }
+    .ticket-meta-row { display:flex; gap:16px; flex-wrap:wrap; background:#f8f9fa; border-radius:6px; padding:10px 14px; font-size:13px; color:#5f6368; }
+    .ticket-meta-item { display:flex; align-items:center; gap:6px; }
+    .ticket-meta-item .material-icons { font-size:15px; color:#1a73e8; }
+    .success-box { width:420px; text-align:center; padding:40px 32px; }
+    .success-icon { font-size:64px !important; color:#34a853; display:block; margin:0 auto 16px; }
+    .success-box h3 { font-size:20px; font-weight:500; color:#202124; margin:0 0 10px; }
+    .success-box p { font-size:14px; color:#5f6368; margin:0 0 6px; }
+    .success-sub { font-size:13px; color:#80868b; margin-bottom:24px !important; }
+    .success-box p strong { color:#202124; }
+    .success-actions { display:flex; justify-content:center; gap:10px; }
   `]
 })
 export class DriverComponent implements OnInit {
@@ -209,20 +840,112 @@ export class DriverComponent implements OnInit {
   trip: TripInfo | null = null;
   incidents: Incident[] = [];
   activePanel = 'route';
-  sidebarCollapsed = false;
   isTyping = false;
+  currentUser: User | null = null;
 
   private incidentCounter = 0;
 
-  constructor(private snackBar: MatSnackBar) {}
+  // ── Troubleshooting flow state ──
+  showModal         = false;
+  showDetailsModal  = false;
+  showDescribeModal = false;
+  showStepsModal    = false;
+  showTicketModal   = false;
+  showTicketSuccess = false;
+  submitted         = false;
+  descSubmitted     = false;
+  ticketSubmitted   = false;
+  describeTab       = 'text';
+  issueDescription  = '';
+  isListening       = false;
+  voiceTranscript   = '';
+  uploadedImages: { url: string; name: string }[] = [];
+  private recognition: any = null;
+  selectedCategory: { label:string; icon:string; color:string; action:string } | null = null;
+  stepsLoading    = false;
+  activeSteps:    { title:string; desc:string; tip?:string }[] = [];
+  completedSteps: { title:string }[] = [];
+  currentStepIdx  = 0;
+  issueResolved   = false;
+  ticket = { title: '', priority: 'medium', description: '' };
+  createdTicketId = '';
+  form = { vehicleId: '', country: '', contactNo: '', address: '' };
+
+  countryList = [
+    'Afghanistan','Albania','Algeria','Argentina','Australia','Austria','Bangladesh','Belgium',
+    'Brazil','Canada','Chile','China','Colombia','Croatia','Czech Republic','Denmark','Egypt',
+    'Ethiopia','Finland','France','Germany','Ghana','Greece','Hungary','India','Indonesia',
+    'Iran','Iraq','Ireland','Israel','Italy','Japan','Jordan','Kenya','Malaysia','Mexico',
+    'Morocco','Netherlands','New Zealand','Nigeria','Norway','Pakistan','Peru','Philippines',
+    'Poland','Portugal','Romania','Russia','Saudi Arabia','South Africa','South Korea','Spain',
+    'Sri Lanka','Sweden','Switzerland','Thailand','Turkey','Ukraine','United Arab Emirates',
+    'United Kingdom','United States','Vietnam','Zimbabwe'
+  ];
+
+  categories = [
+    { label: 'Camera System',    desc: 'Lens, image quality, focus issues',   icon: 'videocam',  color: '#1a73e8', action: 'diagnose_quality' },
+    { label: 'Connectivity',     desc: 'Network, WiFi, streaming problems',    icon: 'wifi',      color: '#34a853', action: 'diagnose_connection' },
+    { label: 'Power & Hardware', desc: 'Battery, cables, physical components', icon: 'power',     color: '#fbbc04', action: 'diagnose_hardware' },
+    { label: 'Software Issues',  desc: 'Firmware, app crashes, updates',       icon: 'code',      color: '#ea4335', action: 'diagnose_software' },
+    { label: 'Storage & Data',   desc: 'SD card, memory, data sync errors',    icon: 'storage',   color: '#9334e6', action: 'diagnose_storage' },
+    { label: 'GPS & Location',   desc: 'Signal loss, calibration, accuracy',   icon: 'gps_fixed', color: '#00897b', action: 'diagnose_gps' },
+  ];
+
+  private stepBank: Record<string, { title:string; desc:string; tip?:string }[]> = {
+    diagnose_quality: [
+      { title: 'Clean the Camera Lens', desc: 'Use a microfibre cloth to gently clean the lens surface.', tip: 'Avoid paper towels — they scratch the lens coating.' },
+      { title: 'Check Focus Settings', desc: 'Verify auto-focus is enabled. Try toggling it off and back on.', tip: 'Manual focus override can get stuck after a firmware update.' },
+      { title: 'Adjust Exposure & Brightness', desc: 'Reset exposure to default (0) and increase brightness by +10.', tip: 'Try enabling HDR mode in direct sunlight.' },
+      { title: 'Restart Camera Service', desc: 'Run: sudo systemctl restart camera-service. Wait 30 seconds.', tip: 'Check logs: journalctl -u camera-service -n 50' },
+      { title: 'Update Camera Firmware', desc: 'Check the manufacturer portal for the latest firmware and apply via admin panel.' }
+    ],
+    diagnose_connection: [
+      { title: 'Check Physical Cables', desc: 'Inspect all ethernet and power cables. Re-seat each connector firmly.', tip: 'A partially seated RJ45 is a very common cause of drops.' },
+      { title: 'Verify Network Configuration', desc: 'Confirm IP, subnet mask, and gateway. Run: ping 8.8.8.8' },
+      { title: 'Restart Network Interface', desc: 'Run: sudo ifdown eth0 && sudo ifup eth0', tip: 'If using WiFi, move closer to the access point.' },
+      { title: 'Check Firewall Rules', desc: 'Ensure ports 80, 443, and 8554 are open. Run: sudo ufw status' },
+      { title: 'Power Cycle the Router/Switch', desc: 'Unplug for 30 seconds, reconnect. Wait 2 minutes.' }
+    ],
+    diagnose_hardware: [
+      { title: 'Inspect for Physical Damage', desc: 'Check for cracks, corrosion, or burn marks.', tip: 'Water ingress is common in outdoor units.' },
+      { title: 'Check Power Supply Voltage', desc: 'Verify the supply delivers correct voltage (12V DC). Replace if outside ±5%.' },
+      { title: 'Verify Battery Level', desc: 'If below 15%, connect to mains and charge for 2 hours before retesting.' },
+      { title: 'Run Built-in Hardware Diagnostics', desc: 'Navigate to Admin > Diagnostics > Run Hardware Test.' },
+      { title: 'Reseat Internal Components', desc: 'Reseat the SD card, SIM card, and internal connectors.' }
+    ],
+    diagnose_software: [
+      { title: 'Restart the Application', desc: 'Run: sudo systemctl restart streetview-agent', tip: 'Check logs at /var/log/streetview/error.log' },
+      { title: 'Clear Application Cache', desc: 'Run: sudo rm -rf /var/cache/streetview/* then restart.' },
+      { title: 'Check for Pending Updates', desc: 'Run: sudo apt update && sudo apt upgrade' },
+      { title: 'Reinstall the Application', desc: 'Run: sudo apt remove streetview-agent && sudo apt install streetview-agent' },
+      { title: 'Restore Factory Settings', desc: 'Navigate to Admin > System > Factory Reset. Backup first.' }
+    ],
+    diagnose_storage: [
+      { title: 'Check Storage Usage', desc: 'Run: df -h. If above 90%, delete old footage.', tip: 'Set up auto-purge in Admin > Storage.' },
+      { title: 'Test SD Card Health', desc: 'Run: sudo badblocks -v /dev/mmcblk0. Replace if errors found.' },
+      { title: 'Verify Mount Points', desc: 'Run: mount | grep /data. Remount if missing: sudo mount -a' },
+      { title: 'Check File System Integrity', desc: 'Run: sudo fsck /dev/mmcblk0p1 to repair errors.' },
+      { title: 'Replace Storage Media', desc: 'Replace the SD card or SSD and reformat via admin panel.' }
+    ],
+    diagnose_gps: [
+      { title: 'Check GPS Antenna Connection', desc: 'Verify the antenna cable is firmly connected.', tip: 'Antenna must have clear sky view.' },
+      { title: 'Verify Sky Visibility', desc: 'Ensure unobstructed view of the sky. Buildings block signals.' },
+      { title: 'Restart GPS Module', desc: 'Run: sudo systemctl restart gpsd' },
+      { title: 'Update GPS Firmware', desc: 'Check manufacturer site for firmware updates.' },
+      { title: 'Run GPS Calibration', desc: 'Navigate to Admin > GPS > Calibrate. Drive in a figure-8 pattern.' }
+    ]
+  };
+
+  constructor(private snackBar: MatSnackBar, private authService: AuthService, private ticketService: TicketService, private router: Router) {}
 
   ngOnInit(): void {
+    this.authService.currentUser$.subscribe(u => this.currentUser = u);
     this.loadTrip();
     this.addMessage('agent', `Hello! I'm your Driver AI Assistant. I can help with navigation, vehicle issues, and incident reporting. How can I help?`, [
-      { id: 'a1', label: 'Navigation Help',    action: 'nav_help' },
-      { id: 'a2', label: 'Vehicle Issue',      action: 'vehicle_issue' },
-      { id: 'a3', label: 'Report Delay',       action: 'report_delay' },
-      { id: 'a4', label: 'Emergency Support',  action: 'emergency' }
+      { id: 'a1', label: 'Navigation Help',   action: 'nav_help' },
+      { id: 'a2', label: 'Vehicle Issue',     action: 'vehicle_issue' },
+      { id: 'a3', label: 'Report Delay',      action: 'report_delay' },
+      { id: 'a4', label: 'Emergency Support', action: 'emergency' }
     ]);
   }
 
@@ -238,6 +961,20 @@ export class DriverComponent implements OnInit {
     return this.incidents.filter(i => i.status === 'open').length;
   }
 
+  get userName(): string {
+    if (!this.currentUser) return 'Guest';
+    return this.currentUser.email.split('@')[0];
+  }
+
+  get userRole(): string {
+    if (!this.currentUser) return 'Guest';
+    return this.currentUser.is_admin ? 'Administrator' : 'Driver';
+  }
+
+  get userInitial(): string {
+    return this.userName.charAt(0).toUpperCase();
+  }
+
   handleUserMessage(text: string): void {
     this.addMessage('user', text);
     this.isTyping = true;
@@ -250,8 +987,8 @@ export class DriverComponent implements OnInit {
   handleAction(action: string): void {
     const responses: Record<string, string> = {
       nav_help:      'I can help with navigation. Please share your current location or destination.',
-      vehicle_issue: 'Describe the vehicle issue and I\'ll guide you through diagnostics.',
-      report_delay:  'I\'ll log a delay report. What is the reason and estimated delay time?',
+      vehicle_issue: "Describe the vehicle issue and I'll guide you through diagnostics.",
+      report_delay:  "I'll log a delay report. What is the reason and estimated delay time?",
       emergency:     '🚨 Emergency mode activated. Dispatching support to your location. Stay safe!'
     };
     this.isTyping = true;
@@ -287,7 +1024,7 @@ export class DriverComponent implements OnInit {
       id: 'INC-' + Date.now(),
       title: `Incident #${this.incidentCounter} Reported`,
       description: 'Incident reported by driver.',
-      severity: (['low','medium','high'] as const)[this.incidentCounter % 3],
+      severity: (['low', 'medium', 'high'] as const)[this.incidentCounter % 3],
       status: 'open',
       location: this.trip?.stops.find(s => s.status === 'arrived')?.address || 'Current Location',
       reportedAt: new Date()
@@ -320,6 +1057,122 @@ export class DriverComponent implements OnInit {
     this.addMessage('system', `Trip status changed to: ${next}`);
   }
 
+  // ── Troubleshooting flow methods ──
+  selectCategory(cat: { label:string; icon:string; color:string; action:string }): void {
+    this.selectedCategory = cat;
+    this.showModal = false;
+    this.showDetailsModal = true;
+    this.submitted = false;
+    this.form = { vehicleId: '', country: '', contactNo: '', address: '' };
+  }
+
+  submitDetails(): void {
+    this.submitted = true;
+    if (!this.form.vehicleId || !this.form.country || !this.form.contactNo || !this.form.address) return;
+    this.showDetailsModal = false;
+    this.showDescribeModal = true;
+    this.descSubmitted = false;
+    this.issueDescription = '';
+    this.voiceTranscript = '';
+    this.uploadedImages = [];
+    this.describeTab = 'text';
+  }
+
+  submitIssue(): void {
+    this.descSubmitted = true;
+    const hasContent = this.issueDescription.trim() || this.voiceTranscript.trim() || this.uploadedImages.length > 0;
+    if (!hasContent) return;
+    this.showDescribeModal = false;
+    this.showStepsModal = true;
+    this.stepsLoading = true;
+    this.issueResolved = false;
+    this.completedSteps = [];
+    this.currentStepIdx = 0;
+    const key = this.selectedCategory?.action || 'diagnose_connection';
+    this.activeSteps = [...(this.stepBank[key] || this.stepBank['diagnose_connection'])];
+    setTimeout(() => { this.stepsLoading = false; }, 1800);
+  }
+
+  get currentStep() { return this.activeSteps[this.currentStepIdx] ?? null; }
+
+  get stepsProgress(): number {
+    if (!this.activeSteps.length) return 0;
+    return (this.currentStepIdx / this.activeSteps.length) * 100;
+  }
+
+  stepResolved(): void { this.issueResolved = true; }
+
+  stepNotHelped(): void {
+    this.completedSteps.push({ title: this.activeSteps[this.currentStepIdx].title });
+    if (this.currentStepIdx < this.activeSteps.length - 1) this.currentStepIdx++;
+    else this.currentStepIdx = this.activeSteps.length;
+  }
+
+  openRaiseTicket(): void {
+    this.showStepsModal = false;
+    this.showTicketModal = true;
+    this.ticketSubmitted = false;
+    this.ticket = {
+      title: `${this.selectedCategory?.label} issue — ${this.form.vehicleId}`,
+      priority: 'medium',
+      description: this.issueDescription || `Issue reported for vehicle ${this.form.vehicleId}. All ${this.activeSteps.length} steps attempted.`
+    };
+  }
+
+  submitTicket(): void {
+    this.ticketSubmitted = true;
+    if (!this.ticket.title) return;
+    this.createdTicketId = 'TKT-' + Date.now().toString().slice(-6);
+    this.ticketService.createTicket({
+      title: this.ticket.title,
+      description: this.ticket.description,
+      priority: this.ticket.priority as any,
+      category: this.selectedCategory?.action || '',
+      cameraId: this.form.vehicleId,
+      reportedBy: this.currentUser?.email || 'Driver',
+      tags: [this.selectedCategory?.label || '']
+    }, []).subscribe();
+    this.showTicketModal = false;
+    this.showTicketSuccess = true;
+  }
+
+  goToTickets(): void { this.closeAll(); this.router.navigate(['/tickets']); }
+
+  closeAll(): void {
+    this.showModal = false; this.showDetailsModal = false; this.showDescribeModal = false;
+    this.showStepsModal = false; this.showTicketModal = false; this.showTicketSuccess = false;
+    this.submitted = false; this.descSubmitted = false; this.ticketSubmitted = false;
+    this.issueResolved = false; this.isListening = false; this.recognition?.stop();
+  }
+
+  startVoice(): void {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { alert('Speech recognition not supported.'); return; }
+    this.recognition = new SR();
+    this.recognition.lang = 'en-US'; this.recognition.continuous = false; this.recognition.interimResults = false;
+    this.recognition.onresult = (e: any) => { this.voiceTranscript = e.results[0][0].transcript; this.issueDescription = this.voiceTranscript; this.isListening = false; };
+    this.recognition.onerror = () => { this.isListening = false; };
+    this.recognition.onend   = () => { this.isListening = false; };
+    this.recognition.start(); this.isListening = true;
+  }
+
+  stopVoice(): void { this.recognition?.stop(); this.isListening = false; }
+  useTranscript(): void { this.issueDescription = this.voiceTranscript; this.describeTab = 'text'; }
+
+  onFileChange(e: Event): void {
+    const files = (e.target as HTMLInputElement).files;
+    if (files) this.addFiles(Array.from(files));
+  }
+  onDrop(e: DragEvent): void { e.preventDefault(); if (e.dataTransfer?.files) this.addFiles(Array.from(e.dataTransfer.files)); }
+  private addFiles(files: File[]): void {
+    files.filter(f => f.type.startsWith('image/')).forEach(f => {
+      const reader = new FileReader();
+      reader.onload = (ev) => this.uploadedImages.push({ url: ev.target!.result as string, name: f.name });
+      reader.readAsDataURL(f);
+    });
+  }
+  removeImage(i: number): void { this.uploadedImages.splice(i, 1); }
+
   private loadTrip(): void {
     this.trip = {
       tripId: 'TRIP-2024-0042',
@@ -334,11 +1187,11 @@ export class DriverComponent implements OnInit {
       speedKmh: 72,
       engineTemp: 88,
       stops: [
-        { id: 1, address: '123 Main St, Downtown',       eta: '10:30 AM', status: 'completed' },
-        { id: 2, address: '456 Oak Ave, Midtown',         eta: '11:15 AM', status: 'arrived',  notes: 'Ring doorbell twice' },
-        { id: 3, address: '789 Pine Rd, Uptown',          eta: '12:00 PM', status: 'pending' },
-        { id: 4, address: '321 Elm Blvd, Westside',       eta: '01:30 PM', status: 'pending' },
-        { id: 5, address: '654 Maple Dr, Northgate',      eta: '02:45 PM', status: 'pending' }
+        { id: 1, address: '123 Main St, Downtown',  eta: '10:30 AM', status: 'completed' },
+        { id: 2, address: '456 Oak Ave, Midtown',    eta: '11:15 AM', status: 'arrived', notes: 'Ring doorbell twice' },
+        { id: 3, address: '789 Pine Rd, Uptown',     eta: '12:00 PM', status: 'pending' },
+        { id: 4, address: '321 Elm Blvd, Westside',  eta: '01:30 PM', status: 'pending' },
+        { id: 5, address: '654 Maple Dr, Northgate', eta: '02:45 PM', status: 'pending' }
       ]
     };
   }

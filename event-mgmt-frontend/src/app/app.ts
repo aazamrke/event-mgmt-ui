@@ -102,20 +102,21 @@ interface NavItem {
     .shell {
       display: flex;
       height: 100vh;
-      background: #0f1117;
+      background: #f8f9fa;
     }
 
     /* Sidebar */
     .sidebar {
       width: 220px;
       min-width: 220px;
-      background: #1a1d27;
-      border-right: 1px solid #2d3148;
+      background: #fff;
+      border-right: 1px solid #dadce0;
       display: flex;
       flex-direction: column;
       transition: width 0.2s ease, min-width 0.2s ease;
       overflow: hidden;
       z-index: 100;
+      box-shadow: 1px 0 3px rgba(60,64,67,.08);
     }
     .sidebar.collapsed { width: 60px; min-width: 60px; }
 
@@ -124,27 +125,26 @@ interface NavItem {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 18px 14px;
-      border-bottom: 1px solid #2d3148;
+      padding: 16px 14px;
+      border-bottom: 1px solid #dadce0;
       flex-shrink: 0;
     }
     .logo-icon {
       width: 34px; height: 34px; border-radius: 8px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      background: #1a73e8;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
     .logo-icon mat-icon { color: white; font-size: 20px; }
     .logo-text {
-      font-size: 15px; font-weight: 700; white-space: nowrap;
-      background: linear-gradient(135deg, #818cf8, #a78bfa);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      font-size: 15px; font-weight: 700; white-space: nowrap; color: #202124;
+      font-family: 'Google Sans', sans-serif;
     }
 
     /* Nav */
     .nav {
       flex: 1;
-      padding: 10px 8px;
+      padding: 8px 8px;
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -154,9 +154,9 @@ interface NavItem {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 10px;
-      border-radius: 8px;
-      color: #64748b;
+      padding: 10px 12px;
+      border-radius: 24px;
+      color: #5f6368;
       text-decoration: none;
       font-size: 14px;
       font-weight: 500;
@@ -166,16 +166,18 @@ interface NavItem {
       transition: all 0.15s;
       white-space: nowrap;
       width: 100%;
+      font-family: 'Google Sans', sans-serif;
     }
-    .nav-link mat-icon { font-size: 20px; width: 20px; height: 20px; flex-shrink: 0; }
-    .nav-link:hover { background: #2d3148; color: #e2e8f0; }
-    .nav-link.active { background: #1e2235; color: #818cf8; }
-    .nav-link.active mat-icon { color: #6366f1; }
+    .nav-link mat-icon { font-size: 20px; width: 20px; height: 20px; flex-shrink: 0; color: #5f6368; }
+    .nav-link:hover { background: #f1f3f4; color: #202124; }
+    .nav-link:hover mat-icon { color: #202124; }
+    .nav-link.active { background: #e8f0fe; color: #1a73e8; font-weight: 600; }
+    .nav-link.active mat-icon { color: #1a73e8; }
 
     /* Footer */
     .sidebar-footer {
       padding: 8px;
-      border-top: 1px solid #2d3148;
+      border-top: 1px solid #dadce0;
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -184,33 +186,33 @@ interface NavItem {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px;
-      border-radius: 8px;
+      padding: 10px 12px;
+      border-radius: 24px;
       cursor: pointer;
       transition: background 0.15s;
     }
-    .user-row:hover { background: #2d3148; }
+    .user-row:hover { background: #f1f3f4; }
     .user-avatar {
       width: 32px; height: 32px; border-radius: 50%;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      background: #1a73e8;
       display: flex; align-items: center; justify-content: center;
       font-size: 13px; font-weight: 700; color: white; flex-shrink: 0;
     }
     .user-info { flex: 1; overflow: hidden; }
-    .user-email { font-size: 13px; font-weight: 500; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .user-role  { font-size: 11px; color: #64748b; }
-    .chevron    { font-size: 16px; width: 16px; height: 16px; color: #64748b; }
-    .collapse-btn { color: #475569; }
+    .user-email { font-size: 13px; font-weight: 500; color: #202124; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role  { font-size: 11px; color: #5f6368; }
+    .chevron    { font-size: 16px; width: 16px; height: 16px; color: #5f6368; }
+    .collapse-btn { color: #5f6368; }
 
     /* Menu */
     .menu-user-info { padding: 12px 16px; }
-    .menu-email { font-size: 13px; font-weight: 500; color: #e2e8f0; }
-    .menu-role  { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .menu-email { font-size: 13px; font-weight: 500; color: #202124; }
+    .menu-role  { font-size: 11px; color: #5f6368; margin-top: 2px; }
 
     /* Page */
     .page-content {
       flex: 1;
-      overflow: hidden;
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
     }
@@ -225,6 +227,7 @@ export class App implements OnInit {
     { label: 'Calendar',      icon: 'calendar_month',       route: '/calendar' },
     { label: 'Preferences',   icon: 'tune',                 route: '/preferences' },
     { label: 'Troubleshoot',  icon: 'build_circle',         route: '/troubleshoot' },
+    { label: 'Tickets',       icon: 'confirmation_number',  route: '/tickets' },
     { label: 'Driver',        icon: 'local_shipping',       route: '/driver' },
     { label: 'Technician',    icon: 'engineering',          route: '/technician' },
     { label: 'Admin',         icon: 'admin_panel_settings', route: '/admin', adminOnly: true }

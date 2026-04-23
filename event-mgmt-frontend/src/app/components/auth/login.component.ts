@@ -76,111 +76,73 @@ import { AuthService } from '../../services/auth.service';
     </div>
   `,
   styles: [`
-    .login-page {
-      display: flex; height: 100vh;
-      background: #0f1117;
-    }
+    .login-page { display:flex; height:100vh; background:#f8f9fa; font-family:'Google Sans','Roboto',sans-serif; }
 
-    /* Left */
     .login-left {
-      flex: 1;
-      background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
-      border-right: 1px solid #2d3148;
-      padding: 48px;
-      display: flex; flex-direction: column; justify-content: center;
+      flex:1; background:#fff; border-right:1px solid #dadce0;
+      padding:48px; display:flex; flex-direction:column; justify-content:center;
     }
-    .brand {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 48px;
-    }
+    .brand { display:flex; align-items:center; gap:12px; margin-bottom:48px; }
     .brand-icon {
-      width: 40px; height: 40px; border-radius: 10px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      display: flex; align-items: center; justify-content: center;
+      width:40px; height:40px; border-radius:8px; background:#1a73e8;
+      display:flex; align-items:center; justify-content:center;
     }
-    .brand-icon .material-icons { color: white; font-size: 22px; }
-    .brand-name { font-size: 18px; font-weight: 700; color: #e2e8f0; }
-    .hero-title {
-      font-size: 40px; font-weight: 800; line-height: 1.2;
-      color: #f1f5f9; margin: 0 0 16px;
-    }
-    .hero-sub { font-size: 16px; color: #64748b; line-height: 1.6; margin: 0 0 40px; max-width: 420px; }
-    .feature-list { display: flex; flex-direction: column; gap: 14px; }
-    .feature {
-      display: flex; align-items: center; gap: 12px;
-      font-size: 15px; color: #94a3b8;
-    }
-    .feature .material-icons { color: #6366f1; font-size: 20px; }
+    .brand-icon .material-icons { color:#fff; font-size:22px; }
+    .brand-name { font-size:18px; font-weight:700; color:#202124; }
+    .hero-title { font-size:38px; font-weight:700; line-height:1.25; color:#202124; margin:0 0 16px; }
+    .hero-sub { font-size:16px; color:#5f6368; line-height:1.6; margin:0 0 40px; max-width:420px; }
+    .feature-list { display:flex; flex-direction:column; gap:14px; }
+    .feature { display:flex; align-items:center; gap:12px; font-size:15px; color:#5f6368; }
+    .feature .material-icons { color:#1a73e8; font-size:20px; }
 
-    /* Right */
-    .login-right {
-      width: 480px; display: flex; align-items: center; justify-content: center;
-      padding: 40px;
-    }
-    .login-card { width: 100%; }
-    .card-header { margin-bottom: 24px; }
-    .card-header h2 { font-size: 26px; font-weight: 700; color: #f1f5f9; margin: 0 0 6px; }
-    .card-header p  { font-size: 14px; color: #64748b; margin: 0; }
+    .login-right { width:480px; display:flex; align-items:center; justify-content:center; padding:40px; background:#f8f9fa; }
+    .login-card { width:100%; }
+    .card-header { margin-bottom:24px; }
+    .card-header h2 { font-size:24px; font-weight:500; color:#202124; margin:0 0 6px; }
+    .card-header p { font-size:14px; color:#5f6368; margin:0; }
 
     .demo-banner {
-      display: flex; align-items: flex-start; gap: 10px;
-      background: #1e2235; border: 1px solid #2d3148;
-      border-left: 3px solid #6366f1;
-      border-radius: 8px; padding: 12px 14px;
-      font-size: 13px; color: #94a3b8; margin-bottom: 24px;
+      display:flex; align-items:flex-start; gap:10px;
+      background:#e8f0fe; border:1px solid #c5d8fb; border-left:3px solid #1a73e8;
+      border-radius:4px; padding:12px 14px; font-size:13px; color:#1a73e8; margin-bottom:24px;
     }
-    .demo-banner .material-icons { color: #6366f1; font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-    .demo-banner strong { color: #e2e8f0; }
-    .demo-banner code { background: #2d3148; padding: 1px 5px; border-radius: 4px; color: #818cf8; }
+    .demo-banner .material-icons { font-size:18px; flex-shrink:0; margin-top:1px; }
+    .demo-banner strong { color:#1557b0; }
+    .demo-banner code { background:#c5d8fb; padding:1px 5px; border-radius:3px; color:#1557b0; }
 
-    .login-form { display: flex; flex-direction: column; gap: 18px; }
-    .field-group { display: flex; flex-direction: column; gap: 6px; }
-    label { font-size: 13px; font-weight: 500; color: #94a3b8; }
+    .login-form { display:flex; flex-direction:column; gap:18px; }
+    .field-group { display:flex; flex-direction:column; gap:6px; }
+    label { font-size:13px; font-weight:500; color:#5f6368; }
     .input-wrap {
-      display: flex; align-items: center;
-      background: #1a1d27; border: 1px solid #2d3148;
-      border-radius: 8px; overflow: hidden;
-      transition: border-color 0.15s;
+      display:flex; align-items:center; background:#fff;
+      border:1px solid #dadce0; border-radius:4px; overflow:hidden; transition:border-color 0.15s;
+      box-shadow:0 1px 2px rgba(60,64,67,.06);
     }
-    .input-wrap:focus-within { border-color: #6366f1; }
-    .input-wrap.error { border-color: #ef4444; }
-    .input-icon { color: #475569; font-size: 18px; padding: 0 12px; flex-shrink: 0; }
-    input {
-      flex: 1; background: transparent; border: none; outline: none;
-      color: #e2e8f0; font-size: 14px; padding: 12px 0;
-    }
-    input::placeholder { color: #475569; }
-    .toggle-pw {
-      background: none; border: none; cursor: pointer;
-      color: #475569; padding: 0 12px; display: flex; align-items: center;
-    }
-    .toggle-pw:hover { color: #94a3b8; }
-    .toggle-pw .material-icons { font-size: 18px; }
-    .field-error { font-size: 12px; color: #ef4444; }
+    .input-wrap:focus-within { border-color:#1a73e8; box-shadow:0 0 0 2px #e8f0fe; }
+    .input-wrap.error { border-color:#ea4335; }
+    .input-icon { color:#9aa0a6; font-size:18px; padding:0 12px; flex-shrink:0; }
+    input { flex:1; background:transparent; border:none; outline:none; color:#202124; font-size:14px; padding:12px 0; font-family:inherit; }
+    input::placeholder { color:#9aa0a6; }
+    .toggle-pw { background:none; border:none; cursor:pointer; color:#9aa0a6; padding:0 12px; display:flex; align-items:center; }
+    .toggle-pw:hover { color:#5f6368; }
+    .toggle-pw .material-icons { font-size:18px; }
+    .field-error { font-size:12px; color:#ea4335; }
 
     .submit-btn {
-      width: 100%; padding: 13px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      border: none; border-radius: 8px;
-      color: white; font-size: 15px; font-weight: 600;
-      cursor: pointer; transition: opacity 0.15s, transform 0.15s;
-      margin-top: 4px;
+      width:100%; padding:12px; background:#1a73e8; border:none; border-radius:4px;
+      color:#fff; font-size:14px; font-weight:500; font-family:inherit;
+      cursor:pointer; transition:background 0.15s, box-shadow 0.15s; margin-top:4px;
     }
-    .submit-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
-    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .submit-btn:hover:not(:disabled) { background:#1557b0; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+    .submit-btn:disabled { background:#dadce0; color:#9aa0a6; cursor:not-allowed; }
 
-    .loading-dots { display: flex; align-items: center; justify-content: center; gap: 5px; }
-    .loading-dots span {
-      width: 6px; height: 6px; border-radius: 50%; background: white;
-      animation: bounce 1.2s infinite;
-    }
-    .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
-    .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+    .loading-dots { display:flex; align-items:center; justify-content:center; gap:5px; }
+    .loading-dots span { width:6px; height:6px; border-radius:50%; background:#fff; animation:bounce 1.2s infinite; }
+    .loading-dots span:nth-child(2) { animation-delay:0.2s; }
+    .loading-dots span:nth-child(3) { animation-delay:0.4s; }
     @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
 
-    @media (max-width: 768px) {
-      .login-left { display: none; }
-      .login-right { width: 100%; }
-    }
+    @media (max-width:768px) { .login-left { display:none; } .login-right { width:100%; } }
   `]
 })
 export class LoginComponent {

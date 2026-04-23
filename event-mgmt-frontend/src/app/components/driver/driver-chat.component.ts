@@ -24,15 +24,17 @@ import { DriverMessage } from './driver.models';
           </div>
           <div>
             <div class="agent-name">Driver AI Assistant</div>
-            <div class="agent-status">{{ isTyping ? 'Typing...' : 'Online' }}</div>
+            <div class="agent-status">{{ isTyping ? 'Typing...' : 'Online · Ready to help' }}</div>
           </div>
+        </div>
+        <div class="g-logo">
+          <span class="g-blue">G</span><span class="g-red">o</span><span class="g-yellow">o</span><span class="g-blue">g</span><span class="g-green">l</span><span class="g-red">e</span>
         </div>
       </div>
 
       <!-- Messages -->
       <div class="messages-area" #chatContainer>
 
-        <!-- Typing indicator -->
         <div class="message agent-msg" *ngIf="isTyping">
           <div class="avatar agent-av"><mat-icon>local_shipping</mat-icon></div>
           <div class="bubble agent-bubble typing-bubble">
@@ -70,100 +72,157 @@ import { DriverMessage } from './driver.models';
 
       <!-- Input bar -->
       <div class="input-bar">
-        <input class="msg-input" [(ngModel)]="userInput" (keyup.enter)="send()"
-               placeholder="Ask the driver assistant...">
-        <button class="send-btn" (click)="send()" [disabled]="!userInput.trim()">
-          <mat-icon>send</mat-icon>
-        </button>
+        <div class="input-wrap">
+          <mat-icon class="input-icon">search</mat-icon>
+          <input class="msg-input" [(ngModel)]="userInput" (keyup.enter)="send()"
+                 placeholder="Ask the driver assistant...">
+          <button class="send-btn" (click)="send()" [disabled]="!userInput.trim()" matTooltip="Send">
+            <mat-icon>send</mat-icon>
+          </button>
+        </div>
       </div>
     </div>
   `,
   styles: [`
-    .chat-panel { display:flex; flex-direction:column; height:100%; background:#0f1117; }
+    :host { display:flex; flex-direction:column; height:100%; }
 
+    .chat-panel {
+      display:flex; flex-direction:column; height:100%;
+      background:#f8f9fa; font-family:'Google Sans','Roboto',sans-serif;
+    }
+
+    /* Header */
     .chat-header {
       display:flex; align-items:center; justify-content:space-between;
-      padding:14px 20px; background:#1a1d27; border-bottom:1px solid #2d3148; flex-shrink:0;
+      padding:12px 20px; background:#fff;
+      border-bottom:1px solid #dadce0; flex-shrink:0;
+      box-shadow:0 1px 3px rgba(60,64,67,.08);
     }
     .agent-info { display:flex; align-items:center; gap:12px; }
     .agent-avatar {
       position:relative; width:40px; height:40px; border-radius:50%;
-      background:linear-gradient(135deg,#6366f1,#8b5cf6);
-      display:flex; align-items:center; justify-content:center;
+      background:#1a73e8; display:flex; align-items:center; justify-content:center;
     }
-    .agent-avatar mat-icon { color:white; font-size:22px; }
+    .agent-avatar mat-icon { color:#fff; font-size:22px; }
     .online-dot {
       position:absolute; bottom:1px; right:1px; width:10px; height:10px;
-      border-radius:50%; background:#22c55e; border:2px solid #1a1d27;
+      border-radius:50%; background:#34a853; border:2px solid #fff;
     }
-    .agent-name { font-size:15px; font-weight:600; color:#e2e8f0; }
-    .agent-status { font-size:12px; color:#64748b; }
+    .agent-name { font-size:15px; font-weight:500; color:#202124; }
+    .agent-status { font-size:12px; color:#5f6368; }
 
+    /* Google logo text */
+    .g-logo { font-size:18px; font-weight:700; letter-spacing:-0.5px; }
+    .g-blue   { color:#4285f4; }
+    .g-red    { color:#ea4335; }
+    .g-yellow { color:#fbbc04; }
+    .g-green  { color:#34a853; }
+
+    /* Messages */
     .messages-area {
-      flex:1; overflow-y:auto; padding:20px;
-      display:flex; flex-direction:column; gap:16px; scroll-behavior:smooth;
+      flex:1; overflow-y:auto; padding:20px 24px;
+      display:flex; flex-direction:column; gap:16px;
     }
-    .messages-area::-webkit-scrollbar { width:4px; }
-    .messages-area::-webkit-scrollbar-thumb { background:#2d3148; border-radius:2px; }
+    .messages-area::-webkit-scrollbar { width:6px; }
+    .messages-area::-webkit-scrollbar-thumb { background:#dadce0; border-radius:3px; }
 
-    .message { display:flex; align-items:flex-end; gap:10px; animation:fadeUp 0.25s ease; }
-    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .message { display:flex; align-items:flex-end; gap:10px; animation:fadeUp 0.2s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
     .user-msg { flex-direction:row-reverse; }
 
-    .avatar { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-    .agent-av { background:linear-gradient(135deg,#6366f1,#8b5cf6); }
-    .agent-av mat-icon { color:white; font-size:18px; }
-    .user-av { background:#2d3148; }
-    .user-av mat-icon { color:#94a3b8; font-size:18px; }
+    .avatar {
+      width:32px; height:32px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    }
+    .agent-av { background:#1a73e8; }
+    .agent-av mat-icon { color:#fff; font-size:18px; }
+    .user-av { background:#e8f0fe; }
+    .user-av mat-icon { color:#1a73e8; font-size:18px; }
 
     .msg-body { display:flex; flex-direction:column; gap:4px; max-width:72%; }
     .user-body { align-items:flex-end; }
 
-    .bubble { padding:12px 16px; border-radius:16px; font-size:14px; line-height:1.6; word-break:break-word; }
-    .agent-bubble { background:#1e2235; color:#e2e8f0; border-bottom-left-radius:4px; border:1px solid #2d3148; }
-    .user-bubble { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white; border-bottom-right-radius:4px; }
+    .bubble {
+      padding:10px 16px; border-radius:18px;
+      font-size:14px; line-height:1.6; word-break:break-word;
+    }
+    .agent-bubble {
+      background:#fff; color:#202124;
+      border-bottom-left-radius:4px;
+      border:1px solid #dadce0;
+      box-shadow:0 1px 2px rgba(60,64,67,.1);
+    }
+    .user-bubble {
+      background:#1a73e8; color:#fff;
+      border-bottom-right-radius:4px;
+    }
 
     .typing-bubble { display:flex; align-items:center; gap:5px; padding:14px 18px; }
-    .typing-bubble .dot { width:7px; height:7px; border-radius:50%; background:#6366f1; animation:bounce 1.2s infinite; }
+    .typing-bubble .dot {
+      width:7px; height:7px; border-radius:50%; background:#1a73e8;
+      animation:bounce 1.2s infinite;
+    }
     .typing-bubble .dot:nth-child(2) { animation-delay:0.2s; }
     .typing-bubble .dot:nth-child(3) { animation-delay:0.4s; }
     @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
 
     .msg-meta { display:flex; align-items:center; gap:6px; padding:0 4px; }
     .user-meta { justify-content:flex-end; }
-    .msg-time { font-size:11px; color:#475569; }
+    .msg-time { font-size:11px; color:#80868b; }
 
-    .action-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    /* Action chips — Google chip style */
+    .action-chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
     .chip-btn {
-      padding:6px 14px; border-radius:20px; border:1px solid #6366f1;
-      background:transparent; color:#818cf8; font-size:13px; cursor:pointer; transition:all 0.15s;
+      padding:6px 16px; border-radius:16px;
+      border:1px solid #dadce0; background:#fff;
+      color:#1a73e8; font-size:13px; font-weight:500;
+      cursor:pointer; transition:all 0.15s;
+      box-shadow:0 1px 2px rgba(60,64,67,.1);
     }
-    .chip-btn:hover { background:#6366f1; color:white; }
+    .chip-btn:hover { background:#e8f0fe; border-color:#1a73e8; }
 
+    /* System message */
     .system-msg {
-      display:flex; align-items:center; gap:6px; font-size:12px; color:#64748b;
-      background:#1a1d27; border:1px solid #2d3148; border-radius:8px; padding:8px 12px;
-    }
-    .system-msg mat-icon { font-size:14px; width:14px; height:14px; color:#6366f1; }
-
-    .input-bar {
       display:flex; align-items:center; gap:8px;
-      padding:14px 16px; background:#1a1d27; border-top:1px solid #2d3148; flex-shrink:0;
+      font-size:12px; color:#5f6368;
+      background:#fff; border:1px solid #dadce0;
+      border-left:3px solid #fbbc04;
+      border-radius:8px; padding:8px 14px;
     }
+    .system-msg mat-icon { font-size:14px; width:14px; height:14px; color:#fbbc04; }
+
+    /* Input bar — Google Search style */
+    .input-bar {
+      padding:12px 20px 16px; background:#f8f9fa;
+      border-top:1px solid #dadce0; flex-shrink:0;
+    }
+    .input-wrap {
+      display:flex; align-items:center; gap:8px;
+      background:#fff; border:1px solid #dadce0;
+      border-radius:24px; padding:8px 16px;
+      box-shadow:0 1px 6px rgba(32,33,36,.1);
+      transition:box-shadow 0.2s, border-color 0.2s;
+    }
+    .input-wrap:focus-within {
+      box-shadow:0 1px 6px rgba(32,33,36,.28);
+      border-color:#1a73e8;
+    }
+    .input-icon { color:#9aa0a6; font-size:20px; flex-shrink:0; }
     .msg-input {
-      flex:1; background:#0f1117; border:1px solid #2d3148; border-radius:10px;
-      padding:10px 16px; color:#e2e8f0; font-size:14px; outline:none; transition:border-color 0.15s;
+      flex:1; border:none; outline:none; background:transparent;
+      color:#202124; font-size:14px; font-family:inherit;
     }
-    .msg-input::placeholder { color:#475569; }
-    .msg-input:focus { border-color:#6366f1; }
+    .msg-input::placeholder { color:#9aa0a6; }
     .send-btn {
-      width:40px; height:40px; border-radius:10px; border:none; cursor:pointer;
-      background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white;
-      display:flex; align-items:center; justify-content:center; transition:all 0.15s;
+      width:36px; height:36px; border-radius:50%; border:none;
+      background:#1a73e8; color:#fff; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:background 0.15s, box-shadow 0.15s;
+      flex-shrink:0;
     }
-    .send-btn:hover { opacity:0.9; transform:scale(1.05); }
-    .send-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
-    .send-btn mat-icon { font-size:20px; width:20px; height:20px; }
+    .send-btn:hover { background:#1557b0; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+    .send-btn:disabled { background:#dadce0; color:#9aa0a6; cursor:not-allowed; }
+    .send-btn mat-icon { font-size:18px; width:18px; height:18px; }
   `]
 })
 export class DriverChatComponent implements AfterViewChecked {
