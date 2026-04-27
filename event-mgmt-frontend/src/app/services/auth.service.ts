@@ -26,14 +26,21 @@ export class AuthService {
   }
 
   private fetchUserInfo(email: string): void {
-    // In real app, decode JWT or call user endpoint
+    const role: 'driver' | 'technician' | 'admin' =
+      email.toLowerCase().includes('admin') ? 'admin' :
+      email.toLowerCase().includes('driver') ? 'driver' : 'technician';
     const user: User = {
       id: Math.floor(Math.random() * 1000) + 1,
-      email: email,
-      is_admin: email.toLowerCase().includes('admin')
+      email,
+      is_admin: role === 'admin',
+      role
     };
     localStorage.setItem('user', JSON.stringify(user));
     this.currentUserSubject.next(user);
+  }
+
+  getRole(): 'driver' | 'technician' | 'admin' {
+    return this.currentUserSubject.value?.role || 'technician';
   }
 
   register(email: string, password: string): Observable<AuthResponse> {

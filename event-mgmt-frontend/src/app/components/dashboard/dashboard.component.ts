@@ -39,12 +39,7 @@ interface Activity {
           <h1>Good {{timeOfDay}}, {{firstName}} 👋</h1>
           <p>Here's what's happening with your Street View cameras today.</p>
         </div>
-        <div class="topbar-actions">
-          <button class="primary-btn" (click)="showModal=true">
-            <span class="material-icons">build_circle</span>
-            Start Troubleshooting
-          </button>
-        </div>
+
       </div>
 
       <!-- Stat cards -->

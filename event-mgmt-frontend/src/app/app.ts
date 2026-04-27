@@ -14,6 +14,7 @@ interface NavItem {
   icon: string;
   route: string;
   adminOnly?: boolean;
+  roles?: ('driver' | 'technician' | 'admin')[];
 }
 
 @Component({
@@ -41,7 +42,7 @@ interface NavItem {
         <!-- Nav -->
         <nav class="nav">
           <ng-container *ngFor="let item of navItems">
-            <a *ngIf="!item.adminOnly || currentUser.is_admin"
+            <a *ngIf="(!item.adminOnly || currentUser.is_admin) && canSee(item)"
                class="nav-link"
                [routerLink]="item.route"
                routerLinkActive="active"
@@ -59,7 +60,7 @@ interface NavItem {
             <div class="user-avatar">{{currentUser.email[0].toUpperCase()}}</div>
             <div class="user-info">
               <div class="user-email">{{currentUser.email}}</div>
-              <div class="user-role">{{currentUser.is_admin ? 'Admin' : 'User'}} · ID {{currentUser.id}}</div>
+              <div class="user-role">{{currentUser.role | titlecase}} · ID {{currentUser.id}}</div>
             </div>
             <mat-icon class="chevron">expand_more</mat-icon>
           </div>
@@ -223,13 +224,12 @@ export class App implements OnInit {
   collapsed = false;
 
   navItems: NavItem[] = [
-    { label: 'Dashboard',     icon: 'dashboard',            route: '/dashboard' },
     { label: 'Calendar',      icon: 'calendar_month',       route: '/calendar' },
     { label: 'Preferences',   icon: 'tune',                 route: '/preferences' },
-    { label: 'Troubleshoot',  icon: 'build_circle',         route: '/troubleshoot' },
     { label: 'Tickets',       icon: 'confirmation_number',  route: '/tickets' },
-    { label: 'Driver',        icon: 'local_shipping',       route: '/driver' },
-    { label: 'Technician',    icon: 'engineering',          route: '/technician' },
+    { label: 'Knowledge Base',icon: 'menu_book',            route: '/knowledge-base',  roles: ['technician', 'admin'] },
+    { label: 'Driver',        icon: 'local_shipping',       route: '/driver',          roles: ['driver'] },
+    { label: 'Technician',    icon: 'engineering',          route: '/technician',      roles: ['technician', 'admin'] },
     { label: 'Admin',         icon: 'admin_panel_settings', route: '/admin', adminOnly: true }
   ];
 
@@ -244,5 +244,11 @@ export class App implements OnInit {
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
+  }
+
+  canSee(item: NavItem): boolean {
+    if (!item.roles) return true;
+    const role = (this.currentUser as any)?.role || 'technician';
+    return item.roles.includes(role);
   }
 }
