@@ -96,27 +96,6 @@ import { User } from '../../models';
         </div>
       </div>
 
-      <!-- ── Sub-nav tabs ── -->
-      <nav class="sub-nav">
-        <button class="snav-tab" [class.active]="activePanel==='chat'"
-                (click)="activePanel='chat'">
-          <mat-icon>support_agent</mat-icon> AI Assistant
-        </button>
-        <button class="snav-tab" [class.active]="activePanel==='route'"
-                (click)="activePanel='route'">
-          <mat-icon>route</mat-icon> Route
-          <span class="snav-chip" *ngIf="trip">{{ trip.completedStops }}/{{ trip.totalStops }}</span>
-        </button>
-        <button class="snav-tab" [class.active]="activePanel==='incidents'"
-                (click)="activePanel='incidents'">
-          <mat-icon>warning_amber</mat-icon> Incidents
-          <span class="snav-badge" *ngIf="openIncidentCount > 0">{{ openIncidentCount }}</span>
-        </button>
-        <button class="snav-tab" [class.active]="activePanel==='vehicle'"
-                (click)="activePanel='vehicle'">
-          <mat-icon>directions_car</mat-icon> Vehicle
-        </button>
-      </nav>
 
       <!-- ── Quick Actions + Support Info row ── -->
       <div class="mid-row">
@@ -335,7 +314,7 @@ import { User } from '../../models';
         </div>
         <div class="input-tabs">
           <button class="itab" [class.active]="describeTab==='text'" (click)="describeTab='text'"><span class="material-icons">edit_note</span> Type</button>
-          <button class="itab" [class.active]="describeTab==='voice'" (click)="describeTab='voice'; startVoice()"><span class="material-icons">mic</span> Voice</button>
+          <button class="itab" [class.active]="describeTab==='voice'" (click)="switchToVoice()"><span class="material-icons">mic</span> Voice</button>
           <button class="itab" [class.active]="describeTab==='image'" (click)="describeTab='image'"><span class="material-icons">add_photo_alternate</span> Image</button>
         </div>
         <div *ngIf="describeTab==='text'" class="describe-body">
@@ -606,31 +585,6 @@ import { User } from '../../models';
     .wa-btn.outline { background:#fff; color:#1a73e8; border:1px solid #dadce0; }
     .wa-btn.outline:hover { background:#e8f0fe; border-color:#1a73e8; }
 
-    /* ── Sub-nav ── */
-    .sub-nav {
-      display:flex; align-items:center; gap:0;
-      background:#fff; border-bottom:1px solid #dadce0;
-      padding:0 20px; flex-shrink:0;
-    }
-    .snav-tab {
-      display:flex; align-items:center; gap:6px;
-      padding:12px 16px; border:none; background:transparent;
-      color:#5f6368; font-size:13px; font-weight:500;
-      cursor:pointer; border-bottom:3px solid transparent;
-      transition:all 0.15s; font-family:inherit; white-space:nowrap;
-      position:relative;
-    }
-    .snav-tab mat-icon { font-size:16px; width:16px; height:16px; }
-    .snav-tab:hover { color:#1a73e8; background:#f8f9fa; }
-    .snav-tab.active { color:#1a73e8; border-bottom-color:#1a73e8; }
-    .snav-chip {
-      font-size:11px; font-weight:600; padding:1px 7px;
-      border-radius:10px; background:#e8f0fe; color:#1a73e8; margin-left:2px;
-    }
-    .snav-badge {
-      font-size:10px; font-weight:700; padding:1px 6px;
-      border-radius:10px; background:#ea4335; color:#fff; margin-left:2px;
-    }
 
     /* ── Mid row ── */
     .mid-row {
@@ -1142,21 +1096,74 @@ export class DriverComponent implements OnInit {
     this.showModal = false; this.showDetailsModal = false; this.showDescribeModal = false;
     this.showStepsModal = false; this.showTicketModal = false; this.showTicketSuccess = false;
     this.submitted = false; this.descSubmitted = false; this.ticketSubmitted = false;
-    this.issueResolved = false; this.isListening = false; this.recognition?.stop();
+    this.issueResolved = false;
+    this.isListening = false;
+    try { this.recognition?.stop(); } catch {}
+  }
+
+  switchToVoice(): void {
+    this.describeTab = 'voice';
+    // Don't auto-start — let user press the mic button
   }
 
   startVoice(): void {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { alert('Speech recognition not supported.'); return; }
+    if (!SR) {
+      alert('Speech recognition is not supported in this browser. Please use Google Chrome.');
+      return;
+    }
+    if (!window.isSecureContext) {
+      alert('Microphone requires HTTPS or localhost.');
+      return;
+    }
+    // Stop any existing session first
+    if (this.recognition) {
+      try { this.recognition.stop(); } catch {}
+    }
+    this.voiceTranscript = '';
     this.recognition = new SR();
-    this.recognition.lang = 'en-US'; this.recognition.continuous = false; this.recognition.interimResults = false;
-    this.recognition.onresult = (e: any) => { this.voiceTranscript = e.results[0][0].transcript; this.issueDescription = this.voiceTranscript; this.isListening = false; };
-    this.recognition.onerror = () => { this.isListening = false; };
-    this.recognition.onend   = () => { this.isListening = false; };
-    this.recognition.start(); this.isListening = true;
+    this.recognition.lang = 'en-US';
+    this.recognition.continuous = true;
+    this.recognition.interimResults = true;
+    this.recognition.maxAlternatives = 1;
+
+    let finalText = '';
+
+    this.recognition.onresult = (e: any) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t;
+        else interim += t;
+      }
+      this.voiceTranscript = finalText || interim;
+    };
+
+    this.recognition.onerror = (e: any) => {
+      if (e.error === 'aborted' || e.error === 'no-speech') return;
+      this.isListening = false;
+      if (e.error === 'not-allowed') alert('Microphone access denied. Please allow microphone in browser settings.');
+    };
+
+    this.recognition.onend = () => {
+      // Restart if still in listening state (handles Chrome auto-stop)
+      if (this.isListening) {
+        try { this.recognition.start(); } catch { this.isListening = false; }
+      }
+    };
+
+    try {
+      this.recognition.start();
+      this.isListening = true;
+    } catch (e) {
+      alert('Could not start microphone. Please try again.');
+    }
   }
 
-  stopVoice(): void { this.recognition?.stop(); this.isListening = false; }
+  stopVoice(): void {
+    this.isListening = false; // set first so onend doesn't restart
+    try { this.recognition?.stop(); } catch {}
+  }
   useTranscript(): void { this.issueDescription = this.voiceTranscript; this.describeTab = 'text'; }
 
   onFileChange(e: Event): void {

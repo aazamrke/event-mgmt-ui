@@ -224,8 +224,6 @@ export class App implements OnInit {
   collapsed = false;
 
   navItems: NavItem[] = [
-    { label: 'Calendar',      icon: 'calendar_month',       route: '/calendar' },
-    { label: 'Preferences',   icon: 'tune',                 route: '/preferences' },
     { label: 'Tickets',       icon: 'confirmation_number',  route: '/tickets' },
     { label: 'Knowledge Base',icon: 'menu_book',            route: '/knowledge-base',  roles: ['technician', 'admin'] },
     { label: 'Driver',        icon: 'local_shipping',       route: '/driver',          roles: ['driver'] },
