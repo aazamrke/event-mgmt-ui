@@ -227,7 +227,8 @@ import { AuthService } from '../../services/auth.service';
     </div>
   `,
   styles: [`
-    .page { padding:24px 28px; background:#f8f9fa; height:100%; overflow-y:auto; font-family:'Google Sans','Roboto',sans-serif; }
+    :host { display: block; }
+    .page { padding:24px 28px; background:#f8f9fa; font-family:'Google Sans','Roboto',sans-serif; }
     .page::-webkit-scrollbar { width:6px; }
     .page::-webkit-scrollbar-thumb { background:#dadce0; border-radius:3px; }
 

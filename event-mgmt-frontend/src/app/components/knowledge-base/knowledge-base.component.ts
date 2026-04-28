@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { KnowledgeBaseService, KbDocument } from './knowledge-base.service';
 
 @Component({
   selector: 'app-knowledge-base',
@@ -20,8 +21,52 @@ import { FormsModule } from '@angular/forms';
         </div>
       </div>
 
-      <!-- Upload Card -->
+      <!-- Documents Table -->
       <div class="card" style="margin-top:20px">
+        <div class="card-head">
+          <span class="material-icons">table_chart</span>
+          <span class="card-title">Indexed Documents</span>
+          <span class="count-badge">{{documents.length}}</span>
+        </div>
+        <div class="empty-state" *ngIf="documents.length === 0 && !loadingDocs">
+          <span class="material-icons">inbox</span>
+          <p>No documents uploaded yet</p>
+        </div>
+        <div class="loading-state" *ngIf="loadingDocs">
+          <div class="spinner"></div>
+        </div>
+        <table class="doc-table" *ngIf="documents.length > 0">
+          <thead>
+            <tr>
+              <th>Filename</th>
+              <th>Category</th>
+              <th>Chunks</th>
+              <th>Size</th>
+              <th>Status</th>
+              <th>Uploaded</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let doc of documents">
+              <td><span class="material-icons doc-icon">{{getIconForType(doc.file_type)}}</span>{{doc.filename}}</td>
+              <td>{{doc.category || '—'}}</td>
+              <td>{{doc.chunk_count}}</td>
+              <td>{{formatSize(doc.file_size)}}</td>
+              <td><span class="status-badge" [class]="'st-'+doc.status">{{doc.status}}</span></td>
+              <td>{{doc.uploaded_at | date:'MMM d, h:mm a'}}</td>
+              <td>
+                <button class="icon-btn delete" (click)="deleteDoc(doc)" title="Delete">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Upload Card -->
+      <div class="card" style="margin-top:16px">
         <div class="card-head">
           <span class="material-icons">upload_file</span>
           <span class="card-title">Upload Document</span>
@@ -36,13 +81,13 @@ import { FormsModule } from '@angular/forms';
              (dragleave)="isDragging=false"
              (drop)="onDrop($event)">
           <input #fileInput type="file"
-                 accept=".pdf,.doc,.docx,.txt,.md,.csv,.json"
+                 accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.jpg,.jpeg,.png,.webp,.bmp,.tiff"
                  hidden (change)="onFileChange($event)">
 
           <ng-container *ngIf="!selectedFile">
             <span class="material-icons dz-icon">cloud_upload</span>
             <p class="dz-text">Drag & drop a file here or <span class="dz-link">browse</span></p>
-            <p class="dz-hint">PDF, DOC, DOCX, TXT, MD, CSV, JSON — max 50 MB</p>
+            <p class="dz-hint">PDF, TXT, MD, CSV, JSON, JPG, PNG, WEBP — max 50 MB</p>
           </ng-container>
 
           <div class="file-preview" *ngIf="selectedFile" (click)="$event.stopPropagation()">
@@ -123,7 +168,28 @@ import { FormsModule } from '@angular/forms';
     </div>
   `,
   styles: [`
-    .page { padding:28px 32px; background:#f8f9fa; height:100%; overflow-y:auto; font-family:'Google Sans','Roboto',sans-serif; }
+    .page { padding:28px 32px; background:#f8f9fa; font-family:'Google Sans','Roboto',sans-serif; }
+    /* Documents table */
+    .count-badge { background:#e8f0fe; color:#1a73e8; border-radius:12px; padding:1px 8px; font-size:12px; font-weight:600; margin-left:6px; }
+    .empty-state { text-align:center; padding:32px; color:#9aa0a6; }
+    .empty-state .material-icons { font-size:36px; display:block; margin:0 auto 8px; color:#dadce0; }
+    .empty-state p { margin:0; font-size:13px; }
+    .loading-state { display:flex; justify-content:center; padding:24px; }
+    .spinner { width:28px; height:28px; border-radius:50%; border:3px solid #dadce0; border-top-color:#1a73e8; animation:spin 0.8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .doc-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .doc-table th { text-align:left; padding:8px 12px; font-size:11px; font-weight:600; color:#5f6368; text-transform:uppercase; letter-spacing:0.04em; border-bottom:2px solid #dadce0; }
+    .doc-table td { padding:10px 12px; border-bottom:1px solid #f1f3f4; color:#202124; vertical-align:middle; }
+    .doc-table tr:last-child td { border-bottom:none; }
+    .doc-table tr:hover td { background:#f8f9fa; }
+    .doc-icon { font-size:16px; color:#1a73e8; vertical-align:middle; margin-right:6px; }
+    .status-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; text-transform:uppercase; }
+    .st-indexed { background:#e6f4ea; color:#137333; }
+    .st-processing { background:#fef7e0; color:#b06000; }
+    .st-failed { background:#fce8e6; color:#c5221f; }
+    .icon-btn { background:transparent; border:none; cursor:pointer; padding:4px; border-radius:50%; display:flex; align-items:center; transition:all 0.15s; }
+    .icon-btn.delete:hover { background:#fce8e6; color:#ea4335; }
+    .icon-btn .material-icons { font-size:18px; color:#9aa0a6; }
 
     .header-card {
       display:flex; align-items:center; gap:16px;
@@ -207,7 +273,7 @@ import { FormsModule } from '@angular/forms';
     .btn-link { background:none; border:none; cursor:pointer; color:inherit; font-weight:600; text-decoration:underline; margin-left:auto; font-family:inherit; font-size:13px; }
   `]
 })
-export class KnowledgeBaseComponent {
+export class KnowledgeBaseComponent implements OnInit {
   selectedFile: File | null = null;
   category = '';
   description = '';
@@ -216,6 +282,12 @@ export class KnowledgeBaseComponent {
   uploadProgress = 0;
   uploadSuccess = false;
   uploadError = '';
+  documents: KbDocument[] = [];
+  loadingDocs = false;
+
+  constructor(private kbService: KnowledgeBaseService) {}
+
+  ngOnInit(): void { this.loadDocuments(); }
 
   onDragOver(e: DragEvent): void { e.preventDefault(); this.isDragging = true; }
 
@@ -248,16 +320,36 @@ export class KnowledgeBaseComponent {
     if (!this.selectedFile) return;
     this.uploading = true;
     this.uploadProgress = 0;
-    // Simulate progress — replace with real KnowledgeBaseService.uploadDocument() call
-    const interval = setInterval(() => {
-      this.uploadProgress += 10;
-      if (this.uploadProgress >= 100) {
-        clearInterval(interval);
+    this.uploadError = '';
+    this.kbService.uploadDocument(this.selectedFile, this.category, this.description).subscribe({
+      next: event => {
+        this.uploadProgress = event.progress;
+        if (event.progress === 100) {
+          this.uploading = false;
+          this.uploadSuccess = true;
+          this.selectedFile = null;
+          this.category = '';
+          this.description = '';
+          this.loadDocuments();
+        }
+      },
+      error: () => {
         this.uploading = false;
-        this.uploadSuccess = true;
-        this.selectedFile = null;
+        this.uploadError = 'Upload failed. Please check your connection and try again.';
       }
-    }, 200);
+    });
+  }
+
+  deleteDoc(doc: KbDocument): void {
+    this.kbService.deleteDocument(doc.id).subscribe(() => this.loadDocuments());
+  }
+
+  loadDocuments(): void {
+    this.loadingDocs = true;
+    this.kbService.getDocuments().subscribe(docs => {
+      this.documents = docs;
+      this.loadingDocs = false;
+    });
   }
 
   reset(): void {
@@ -267,11 +359,21 @@ export class KnowledgeBaseComponent {
     this.description = '';
   }
 
+  getIconForType(type: string): string {
+    const map: Record<string, string> = {
+      'pdf': 'picture_as_pdf', 'doc': 'description', 'docx': 'description',
+      'txt': 'text_snippet', 'md': 'text_snippet', 'csv': 'table_chart', 'json': 'data_object',
+      'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'webp': 'image', 'bmp': 'image', 'tiff': 'image'
+    };
+    return map[type?.toLowerCase()] || 'insert_drive_file';
+  }
+
   getFileIcon(): string {
     const ext = this.selectedFile?.name.split('.').pop()?.toLowerCase();
     const map: Record<string, string> = {
       pdf: 'picture_as_pdf', doc: 'description', docx: 'description',
-      txt: 'text_snippet', md: 'text_snippet', csv: 'table_chart', json: 'data_object'
+      txt: 'text_snippet', md: 'text_snippet', csv: 'table_chart', json: 'data_object',
+      jpg: 'image', jpeg: 'image', png: 'image', webp: 'image', bmp: 'image', tiff: 'image'
     };
     return map[ext || ''] || 'insert_drive_file';
   }

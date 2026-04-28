@@ -150,7 +150,7 @@ export class LoginComponent {
   form: FormGroup;
   loading = false;
   showPassword = false;
-  selectedRole: 'driver' | 'technician' = 'technician';
+  selectedRole: 'driver' | 'technician' | 'admin' = 'technician';
 
   constructor(private fb: FormBuilder, private authService: AuthService,
               private router: Router, private snackBar: MatSnackBar) {
@@ -167,11 +167,11 @@ export class LoginComponent {
     const role = this.selectedRole;
     const redirect = role === 'driver' ? '/driver' : '/technician';
 
-    this.authService.login(email, password).subscribe({
+    this.authService.login(email, password, role).subscribe({
       next: () => { this.router.navigate([redirect]); },
       error: () => {
         this.loading = false;
-        const user = { id: Math.floor(Math.random() * 9000) + 1000, email, is_admin: role === 'technician', role };
+        const user = { id: Math.floor(Math.random() * 9000) + 1000, email, is_admin: role === 'admin', role };
         localStorage.setItem('token', 'demo-token');
         localStorage.setItem('user', JSON.stringify(user));
         (this.authService as any).currentUserSubject.next(user);

@@ -90,6 +90,22 @@ export class KnowledgeBaseService {
       .pipe(catchError(() => of({} as KbDocument)));
   }
 
+  // POST /ask
+  ask(question: string): Observable<string> {
+    return this.http.post<any>(`${this.base}/ask`, { query: question }, { headers: this.headers() })
+      .pipe(
+        map(res => {
+          console.log('[/ask raw response]', res);
+          const raw = res?.answer ?? res?.response ?? res?.text ?? res?.result ?? res?.data ?? '';
+          return String(raw).trim();
+        }),
+        catchError(err => {
+          console.error('[/ask error]', err?.status, err?.error);
+          return of('__error__');
+        })
+      );
+  }
+
   // POST /kb/search
   search(query: string, topK = 5, category?: string): Observable<KbSearchResult[]> {
     const body: any = { query, top_k: topK };

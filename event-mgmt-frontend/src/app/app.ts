@@ -25,11 +25,8 @@ interface NavItem {
     MatIconModule, MatTooltipModule, MatMenuModule, MatButtonModule, MatDividerModule
   ],
   template: `
-    <!-- Auth pages: no sidebar -->
-    <router-outlet *ngIf="!currentUser"></router-outlet>
-
     <!-- App shell with sidebar -->
-    <div class="shell" *ngIf="currentUser">
+    <div class="shell" *ngIf="currentUser; else authOutlet">
 
       <!-- Sidebar -->
       <aside class="sidebar" [class.collapsed]="collapsed">
@@ -92,9 +89,13 @@ interface NavItem {
         <router-outlet></router-outlet>
       </div>
     </div>
+
+    <ng-template #authOutlet>
+      <router-outlet></router-outlet>
+    </ng-template>
   `,
   styles: [`
-    :host { display: block; height: 100vh; overflow: hidden; }
+    :host { display: block; height: 100vh; }
 
     /* Auth pages */
     router-outlet + * { display: block; }
@@ -214,8 +215,6 @@ interface NavItem {
     .page-content {
       flex: 1;
       overflow-y: auto;
-      display: flex;
-      flex-direction: column;
     }
   `]
 })

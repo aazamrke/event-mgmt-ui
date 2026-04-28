@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
@@ -13,6 +13,7 @@ import { DriverRightPanelComponent } from './driver-right-panel.component';
 import { DriverMessage, TripInfo, Incident, RouteStop } from './driver.models';
 import { AuthService } from '../../services/auth.service';
 import { TicketService } from '../streetview-troubleshoot/services/ticket.service';
+import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { User } from '../../models';
 
 @Component({
@@ -87,7 +88,7 @@ import { User } from '../../models';
           </div>
         </div>
         <div class="welcome-actions">
-          <button class="wa-btn primary" (click)="activePanel='chat'">
+          <button class="wa-btn primary" (click)="showChatbot=true">
             <mat-icon>support_agent</mat-icon> Get AI Help
           </button>
           <button class="wa-btn outline" (click)="showModal=true">
@@ -215,6 +216,49 @@ import { User } from '../../models';
         </app-driver-right-panel>
       </div>
 
+    </div>
+
+    <!-- AI Chatbot Popup -->
+    <div class="chat-backdrop" *ngIf="showChatbot" (click)="showChatbot=false">
+      <div class="chatbot-popup" (click)="$event.stopPropagation()">
+
+        <!-- Chat header -->
+        <div class="cb-header">
+          <div class="cb-agent">
+            <div class="cb-avatar"><mat-icon>support_agent</mat-icon><span class="cb-dot"></span></div>
+            <div>
+              <div class="cb-name">Driver AI Assistant</div>
+              <div class="cb-status">{{cbTyping ? 'Typing...' : 'Online · Powered by Knowledge Base'}}</div>
+            </div>
+          </div>
+          <button class="cb-close" (click)="showChatbot=false"><mat-icon>close</mat-icon></button>
+        </div>
+
+        <!-- Messages -->
+        <div class="cb-messages" #cbContainer>
+          <div *ngFor="let m of cbMessages" class="cb-msg" [class.cb-user]="m.role==='user'" [class.cb-agent]="m.role==='agent'">
+            <div class="cb-bubble">{{m.text}}</div>
+            <div class="cb-time">{{m.time | date:'shortTime'}}</div>
+          </div>
+          <div class="cb-msg cb-agent" *ngIf="cbTyping">
+            <div class="cb-bubble typing-bubble"><span></span><span></span><span></span></div>
+          </div>
+        </div>
+
+        <!-- Quick suggestions -->
+        <div class="cb-suggestions" *ngIf="cbMessages.length <= 1">
+          <button *ngFor="let s of cbSuggestions" class="cb-chip" (click)="cbSend(s)">{{s}}</button>
+        </div>
+
+        <!-- Input -->
+        <div class="cb-input-bar">
+          <input class="cb-input" [(ngModel)]="cbInput" (keyup.enter)="cbSend(cbInput)"
+                 placeholder="Ask anything about your camera system...">
+          <button class="cb-send" (click)="cbSend(cbInput)" [disabled]="!cbInput.trim()">
+            <mat-icon>send</mat-icon>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Step 1: Category -->
@@ -481,10 +525,10 @@ import { User } from '../../models';
     </div>
   `,
   styles: [`
-    :host { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+    :host { display:flex; flex-direction:column; height:100%; }
 
     .driver-page {
-      display:flex; flex-direction:column; height:100%;
+      display:flex; flex-direction:column; height:100%; overflow:hidden;
       background:#f8f9fa; font-family:'Google Sans','Roboto',sans-serif;
     }
 
@@ -654,6 +698,88 @@ import { User } from '../../models';
       .header-centre { display:none; }
     }
 
+    /* ── Chatbot Popup ── */
+    .chat-backdrop {
+      position:fixed; inset:0; background:rgba(32,33,36,.4);
+      display:flex; align-items:flex-end; justify-content:flex-end;
+      padding:20px; z-index:2000; animation:bdin 0.15s ease;
+    }
+    .chatbot-popup {
+      width:380px; height:560px; background:#fff; border-radius:16px;
+      box-shadow:0 8px 32px rgba(60,64,67,.3); display:flex; flex-direction:column;
+      animation:mup 0.2s ease; overflow:hidden;
+    }
+    .cb-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 16px; background:#1a73e8; flex-shrink:0;
+    }
+    .cb-agent { display:flex; align-items:center; gap:10px; }
+    .cb-avatar {
+      position:relative; width:38px; height:38px; border-radius:50%;
+      background:rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center;
+    }
+    .cb-avatar mat-icon { color:#fff; font-size:22px; }
+    .cb-dot {
+      position:absolute; bottom:1px; right:1px; width:9px; height:9px;
+      border-radius:50%; background:#34a853; border:2px solid #1a73e8;
+    }
+    .cb-name   { font-size:14px; font-weight:600; color:#fff; }
+    .cb-status { font-size:11px; color:rgba(255,255,255,.8); }
+    .cb-close  { background:rgba(255,255,255,.15); border:none; cursor:pointer; color:#fff; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+    .cb-close:hover { background:rgba(255,255,255,.3); }
+    .cb-close mat-icon { font-size:18px; }
+
+    .cb-messages {
+      flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; background:#f8f9fa;
+    }
+    .cb-messages::-webkit-scrollbar { width:4px; }
+    .cb-messages::-webkit-scrollbar-thumb { background:#dadce0; border-radius:2px; }
+    .cb-msg { display:flex; flex-direction:column; gap:3px; animation:fadeUp 0.2s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    .cb-user { align-items:flex-end; }
+    .cb-agent { align-items:flex-start; }
+    .cb-bubble {
+      max-width:80%; padding:10px 14px; border-radius:16px;
+      font-size:13px; line-height:1.5; word-break:break-word;
+    }
+    .cb-user .cb-bubble  { background:#1a73e8; color:#fff; border-bottom-right-radius:4px; }
+    .cb-agent .cb-bubble { background:#fff; color:#202124; border:1px solid #dadce0; border-bottom-left-radius:4px; box-shadow:0 1px 2px rgba(60,64,67,.08); }
+    .cb-time { font-size:10px; color:#9aa0a6; padding:0 4px; }
+    .typing-bubble { display:flex; align-items:center; gap:4px; padding:12px 16px; }
+    .typing-bubble span { width:7px; height:7px; border-radius:50%; background:#1a73e8; animation:bounce 1.2s infinite; display:block; }
+    .typing-bubble span:nth-child(2) { animation-delay:0.2s; }
+    .typing-bubble span:nth-child(3) { animation-delay:0.4s; }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+    .cb-suggestions { display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px; background:#fff; border-top:1px solid #f1f3f4; flex-shrink:0; }
+    .cb-chip {
+      padding:5px 12px; border-radius:16px; border:1px solid #dadce0;
+      background:#fff; color:#1a73e8; font-size:12px; font-weight:500;
+      cursor:pointer; transition:all 0.15s; font-family:inherit;
+    }
+    .cb-chip:hover { background:#e8f0fe; border-color:#1a73e8; }
+
+    .cb-input-bar {
+      display:flex; align-items:center; gap:8px; padding:10px 12px;
+      background:#fff; border-top:1px solid #dadce0; flex-shrink:0;
+    }
+    .cb-input {
+      flex:1; border:1px solid #dadce0; border-radius:20px; padding:8px 14px;
+      font-size:13px; color:#202124; outline:none; font-family:inherit;
+      transition:border-color 0.15s;
+    }
+    .cb-input:focus { border-color:#1a73e8; }
+    .cb-input::placeholder { color:#9aa0a6; }
+    .cb-send {
+      width:34px; height:34px; border-radius:50%; border:none;
+      background:#1a73e8; color:#fff; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:background 0.15s; flex-shrink:0;
+    }
+    .cb-send:hover { background:#1557b0; }
+    .cb-send:disabled { background:#dadce0; cursor:not-allowed; }
+    .cb-send mat-icon { font-size:16px; }
+
     /* ── Modals (same as dashboard) ── */
     .modal-backdrop { position:fixed; inset:0; background:rgba(32,33,36,.5); display:flex; align-items:center; justify-content:center; z-index:1000; animation:bdin 0.15s ease; }
     @keyframes bdin { from{opacity:0} to{opacity:1} }
@@ -789,7 +915,9 @@ import { User } from '../../models';
     .success-actions { display:flex; justify-content:center; gap:10px; }
   `]
 })
-export class DriverComponent implements OnInit {
+export class DriverComponent implements OnInit, AfterViewChecked {
+  @ViewChild('cbContainer') cbContainer!: ElementRef;
+  private cbShouldScroll = false;
   messages: DriverMessage[] = [];
   trip: TripInfo | null = null;
   incidents: Incident[] = [];
@@ -800,12 +928,80 @@ export class DriverComponent implements OnInit {
   private incidentCounter = 0;
 
   // ── Troubleshooting flow state ──
+  showChatbot = false;
+  cbInput = '';
+  cbTyping = false;
   showModal         = false;
   showDetailsModal  = false;
   showDescribeModal = false;
   showStepsModal    = false;
   showTicketModal   = false;
   showTicketSuccess = false;
+  cbMessages: { role: 'user'|'agent'; text: string; time: Date }[] = [
+    { role: 'agent', text: 'Hi! I\'m your Driver AI Assistant powered by the Knowledge Base. How can I help you today?', time: new Date() }
+  ];
+  cbSuggestions = ['Camera not connecting', 'GPS signal lost', 'SD card full', 'Software update failed', 'Power issue'];
+
+  private kbResponses: Record<string, string> = {
+    'camera': 'For camera connection issues: 1) Check all cables are firmly connected. 2) Verify power supply voltage (12V DC). 3) Restart the camera service: sudo systemctl restart camera-service. 4) Check logs for errors.',
+    'gps': 'For GPS signal issues: 1) Ensure the antenna has a clear view of the sky. 2) Check the antenna cable connection. 3) Restart GPS daemon: sudo systemctl restart gpsd. 4) Run calibration from Admin > GPS > Calibrate.',
+    'sd card': 'For SD card / storage issues: 1) Check available space with: df -h. 2) Run health check: sudo badblocks -v /dev/mmcblk0. 3) Verify mount: mount | grep /data. 4) Replace card if errors found.',
+    'storage': 'For storage issues: 1) Delete old footage if disk >90% full. 2) Check SD card health. 3) Verify mount points are correct. 4) Run fsck to repair file system errors.',
+    'software': 'For software issues: 1) Restart the application: sudo systemctl restart streetview-agent. 2) Clear cache: sudo rm -rf /var/cache/streetview/*. 3) Check for updates: sudo apt update && sudo apt upgrade.',
+    'power': 'For power issues: 1) Check power supply voltage with a multimeter (should be 12V DC ±5%). 2) Inspect cables for damage. 3) Check battery level in admin panel. 4) Connect to mains if battery <15%.',
+    'update': 'For software update issues: 1) Run: sudo apt update && sudo apt upgrade. 2) Check internet connectivity first. 3) If update fails, try: sudo apt --fix-broken install. 4) Restart after update.',
+    'connect': 'For connectivity issues: 1) Check physical cables. 2) Verify IP configuration. 3) Test with: ping 8.8.8.8. 4) Check firewall rules: sudo ufw status. 5) Restart network: sudo ifdown eth0 && sudo ifup eth0.',
+    'lens': 'For lens/image quality issues: 1) Clean lens with microfibre cloth. 2) Check auto-focus settings. 3) Reset exposure to default. 4) Enable HDR mode for bright conditions.',
+    'default': 'I can help with camera system issues, GPS problems, connectivity, storage, software updates, and power issues. Please describe your problem in more detail and I\'ll guide you through the solution.'
+  };
+
+  cbSend(text: string): void {
+    if (!text?.trim()) return;
+    this.cbInput = '';
+    this.cbMessages = [...this.cbMessages, { role: 'user', text: text.trim(), time: new Date() }];
+    this.cbTyping = true;
+    this.cbShouldScroll = true;
+
+    this.kbService.search(text.trim(), 3).subscribe(results => {
+      console.log('[KB search results]', results);
+      let reply = '';
+      if (results.length > 0) {
+        // Extract most relevant sentences from top results
+        const combined = results.map(r => r.content).join(' ');
+        reply = this.extractRelevant(combined, text.trim());
+      } else {
+        reply = this.getKbResponse(text.trim());
+      }
+      this.cbMessages = [...this.cbMessages, { role: 'agent', text: reply, time: new Date() }];
+      this.cbTyping = false;
+      this.cbShouldScroll = true;
+    });
+  }
+
+  private extractRelevant(raw: string, query: string): string {
+    // Split into sentences and score by keyword overlap with query
+    const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const sentences = raw.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 20);
+    if (!sentences.length) return raw.substring(0, 300);
+
+    const scored = sentences.map(s => ({
+      s,
+      score: keywords.filter(k => s.toLowerCase().includes(k)).length
+    }));
+    scored.sort((a, b) => b.score - a.score);
+
+    // Return top 3 most relevant sentences
+    const top = scored.slice(0, 3).map(x => x.s.trim()).join(' ');
+    return top || sentences.slice(0, 2).join(' ');
+  }
+
+  private getKbResponse(query: string): string {
+    const q = query.toLowerCase();
+    for (const key of Object.keys(this.kbResponses)) {
+      if (key !== 'default' && q.includes(key)) return this.kbResponses[key];
+    }
+    return this.kbResponses['default'];
+  }
   submitted         = false;
   descSubmitted     = false;
   ticketSubmitted   = false;
@@ -890,7 +1086,15 @@ export class DriverComponent implements OnInit {
     ]
   };
 
-  constructor(private snackBar: MatSnackBar, private authService: AuthService, private ticketService: TicketService, private router: Router) {}
+  constructor(private snackBar: MatSnackBar, private authService: AuthService, private ticketService: TicketService, private router: Router, private kbService: KnowledgeBaseService) {}
+
+  ngAfterViewChecked(): void {
+    if (this.cbShouldScroll && this.cbContainer) {
+      const el = this.cbContainer.nativeElement;
+      el.scrollTop = el.scrollHeight;
+      this.cbShouldScroll = false;
+    }
+  }
 
   ngOnInit(): void {
     this.authService.currentUser$.subscribe(u => this.currentUser = u);

@@ -16,19 +16,18 @@ export class AuthService {
     this.loadUserFromStorage();
   }
 
-  login(email: string, password: string): Observable<AuthResponse> {
+  login(email: string, password: string, selectedRole?: 'driver' | 'technician' | 'admin'): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/login`, { email, password })
       .pipe(tap(response => {
         this.setToken(response.access_token);
-        // Decode JWT or fetch user info
-        this.fetchUserInfo(email);
+        this.fetchUserInfo(email, selectedRole);
       }));
   }
 
-  private fetchUserInfo(email: string): void {
-    const role: 'driver' | 'technician' | 'admin' =
-      email.toLowerCase().includes('admin') ? 'admin' :
-      email.toLowerCase().includes('driver') ? 'driver' : 'technician';
+  private fetchUserInfo(email: string, selectedRole?: 'driver' | 'technician' | 'admin'): void {
+    const role: 'driver' | 'technician' | 'admin' = selectedRole ||
+      (email.toLowerCase().includes('admin') ? 'admin' :
+      email.toLowerCase().includes('driver') ? 'driver' : 'technician');
     const user: User = {
       id: Math.floor(Math.random() * 1000) + 1,
       email,
