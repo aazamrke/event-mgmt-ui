@@ -408,48 +408,58 @@ import { User } from '../../models';
       </div>
     </div>
 
-    <!-- Step 4: Troubleshooting Steps -->
+    <!-- Step 4: AI Conversation -->
     <div class="modal-backdrop" *ngIf="showStepsModal" (click)="$event.stopPropagation()">
       <div class="modal-box steps-modal" (click)="$event.stopPropagation()">
         <div class="modal-head">
           <div class="modal-title">
             <div class="cat-badge" [style.background]="selectedCategory?.color+'18'"><span class="material-icons" [style.color]="selectedCategory?.color">{{selectedCategory?.icon}}</span></div>
-            Troubleshooting Steps
+            AI Troubleshooting Assistant
           </div>
           <button class="close-btn" (click)="closeAll()"><span class="material-icons">close</span></button>
         </div>
-        <div class="ts-progress-wrap">
-          <div class="ts-progress-bar"><div class="ts-progress-fill" [style.width.%]="stepsProgress"></div></div>
-          <span class="ts-progress-label">Step {{currentStepIdx+1}} of {{activeSteps.length}}</span>
-        </div>
-        <div class="ts-loading" *ngIf="stepsLoading"><div class="spinner"></div><p>Analysing issue and generating steps...</p></div>
-        <ng-container *ngIf="!stepsLoading && currentStep">
-          <div class="ts-step-card">
-            <div class="ts-step-num" [style.background]="selectedCategory?.color+'18'" [style.color]="selectedCategory?.color">{{currentStepIdx+1}}</div>
-            <div class="ts-step-body">
-              <div class="ts-step-title">{{currentStep.title}}</div>
-              <div class="ts-step-desc">{{currentStep.desc}}</div>
-              <div class="ts-step-tip" *ngIf="currentStep.tip"><span class="material-icons">lightbulb</span> {{currentStep.tip}}</div>
+
+        <!-- Conversation messages -->
+        <div class="ai-messages">
+          <div class="ts-loading" *ngIf="stepsLoading && aiConversation.length === 0">
+            <div class="spinner"></div><p>Analysing issue with knowledge base...</p>
+          </div>
+          <ng-container *ngFor="let m of aiConversation">
+            <div class="ai-msg" [class.ai-user]="m.role==='user'" [class.ai-agent]="m.role==='agent'">
+              <div class="ai-avatar" *ngIf="m.role==='agent'">
+                <span class="material-icons">support_agent</span>
+              </div>
+              <div class="ai-bubble">{{m.text}}</div>
+              <div class="ai-avatar user-av" *ngIf="m.role==='user'">
+                <span class="material-icons">person</span>
+              </div>
             </div>
+          </ng-container>
+          <div class="ai-msg ai-agent" *ngIf="stepsLoading && aiConversation.length > 0">
+            <div class="ai-avatar"><span class="material-icons">support_agent</span></div>
+            <div class="ai-bubble typing-bubble"><span></span><span></span><span></span></div>
           </div>
-          <div class="ts-question">
-            <p class="ts-q-label">Did this step resolve the issue?</p>
-            <div class="ts-q-actions">
-              <button class="btn-success" (click)="stepResolved()"><span class="material-icons">check_circle</span> Yes, Issue Resolved!</button>
-              <button class="btn-outline" (click)="stepNotHelped()"><span class="material-icons">arrow_forward</span> {{currentStepIdx < activeSteps.length-1 ? 'No, Try Next Step' : 'No, Still Not Resolved'}}</button>
-            </div>
-          </div>
-          <div class="ts-done-list" *ngIf="completedSteps.length>0">
-            <div class="ts-done-label">Tried so far:</div>
-            <div *ngFor="let s of completedSteps" class="ts-done-item"><span class="material-icons">remove_done</span> {{s.title}}</div>
-          </div>
-        </ng-container>
-        <div class="ts-exhausted" *ngIf="!stepsLoading && !currentStep && !issueResolved">
-          <span class="material-icons">sentiment_dissatisfied</span>
-          <h3>Issue Not Resolved</h3>
-          <p>We've gone through all {{activeSteps.length}} troubleshooting steps. Let's raise a support ticket.</p>
-          <button class="btn-primary" (click)="openRaiseTicket()"><span class="material-icons">confirmation_number</span> Raise a Ticket</button>
         </div>
+
+        <!-- Follow-up input -->
+        <div class="ai-input-bar" *ngIf="!stepsLoading || aiConversation.length > 0">
+          <input class="ai-input" [(ngModel)]="aiInput" (keyup.enter)="aiSend(aiInput)"
+                 placeholder="Ask a follow-up question...">
+          <button class="ai-send" (click)="aiSend(aiInput)" [disabled]="!aiInput.trim() || stepsLoading">
+            <span class="material-icons">send</span>
+          </button>
+        </div>
+
+        <!-- Actions -->
+        <div class="form-actions" style="margin-top:12px" *ngIf="aiConversation.length > 0">
+          <button class="btn-success" (click)="stepResolved()" *ngIf="!issueResolved">
+            <span class="material-icons">check_circle</span> Issue Resolved
+          </button>
+          <button class="btn-outline" (click)="openRaiseTicket()" *ngIf="!issueResolved">
+            <span class="material-icons">confirmation_number</span> Raise a Ticket
+          </button>
+        </div>
+
         <div class="ts-resolved" *ngIf="issueResolved">
           <span class="material-icons">celebration</span>
           <h3>Issue Resolved! 🎉</h3>
@@ -873,10 +883,30 @@ import { User } from '../../models';
     .img-add .material-icons { font-size:24px; }
     .img-note-wrap { align-items:flex-start; margin-top:12px; }
     .steps-modal { width:580px; }
-    .ts-progress-wrap { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
-    .ts-progress-bar { flex:1; height:6px; background:#f1f3f4; border-radius:3px; overflow:hidden; }
-    .ts-progress-fill { height:100%; background:#1a73e8; border-radius:3px; transition:width 0.4s ease; }
-    .ts-progress-label { font-size:12px; color:#5f6368; white-space:nowrap; font-weight:500; }
+    /* AI Conversation */
+    .ai-messages { display:flex; flex-direction:column; gap:12px; max-height:340px; overflow-y:auto; padding:4px 0 8px; margin-bottom:8px; }
+    .ai-messages::-webkit-scrollbar { width:4px; }
+    .ai-messages::-webkit-scrollbar-thumb { background:#dadce0; border-radius:2px; }
+    .ai-msg { display:flex; align-items:flex-end; gap:8px; animation:fadeUp 0.2s ease; }
+    .ai-user  { flex-direction:row-reverse; }
+    .ai-avatar { width:30px; height:30px; border-radius:50%; background:#1a73e8; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .ai-avatar .material-icons { font-size:16px; color:#fff; }
+    .ai-avatar.user-av { background:#e8f0fe; }
+    .ai-avatar.user-av .material-icons { color:#1a73e8; }
+    .ai-bubble { max-width:82%; padding:10px 14px; border-radius:16px; font-size:13px; line-height:1.6; word-break:break-word; }
+    .ai-agent .ai-bubble { background:#f8f9fa; border:1px solid #dadce0; border-bottom-left-radius:4px; color:#202124; }
+    .ai-user  .ai-bubble { background:#1a73e8; color:#fff; border-bottom-right-radius:4px; }
+    .typing-bubble { display:flex; align-items:center; gap:4px; padding:12px 16px; }
+    .typing-bubble span { width:7px; height:7px; border-radius:50%; background:#1a73e8; animation:bounce 1.2s infinite; display:block; }
+    .typing-bubble span:nth-child(2) { animation-delay:0.2s; }
+    .typing-bubble span:nth-child(3) { animation-delay:0.4s; }
+    .ai-input-bar { display:flex; align-items:center; gap:8px; padding:8px 0 0; border-top:1px solid #dadce0; }
+    .ai-input { flex:1; border:1px solid #dadce0; border-radius:20px; padding:8px 14px; font-size:13px; color:#202124; outline:none; font-family:inherit; transition:border-color 0.15s; }
+    .ai-input:focus { border-color:#1a73e8; }
+    .ai-input::placeholder { color:#9aa0a6; }
+    .ai-send { width:34px; height:34px; border-radius:50%; border:none; background:#1a73e8; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .ai-send:disabled { background:#dadce0; cursor:not-allowed; }
+    .ai-send .material-icons { font-size:16px; }
     .ts-loading { display:flex; flex-direction:column; align-items:center; gap:16px; padding:40px 0; color:#5f6368; font-size:14px; }
     .spinner { width:32px; height:32px; border-radius:50%; border:3px solid #dadce0; border-top-color:#1a73e8; animation:spin 0.8s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
@@ -1017,9 +1047,55 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   completedSteps: { title:string }[] = [];
   currentStepIdx  = 0;
   issueResolved   = false;
+  aiConversation: { role: 'user'|'agent'; text: string; time: Date }[] = [];
+  aiInput = '';
   ticket = { title: '', priority: 'medium', description: '' };
   createdTicketId = '';
   form = { vehicleId: '', country: '', contactNo: '', address: '' };
+
+  mockLocation = {
+    country: 'United States',
+    contactNo: '+1 555 000 0042',
+    address: '456 Oak Ave, Midtown, New York, NY 10001'
+  };
+
+  ngOnInit(): void {
+    this.authService.currentUser$.subscribe(u => this.currentUser = u);
+    this.loadTrip();
+    this.detectLocation();
+    this.addMessage('agent', `Hello! I'm your Driver AI Assistant. I can help with navigation, vehicle issues, and incident reporting. How can I help?`, [
+      { id: 'a1', label: 'Navigation Help',   action: 'nav_help' },
+      { id: 'a2', label: 'Vehicle Issue',     action: 'vehicle_issue' },
+      { id: 'a3', label: 'Report Delay',      action: 'report_delay' },
+      { id: 'a4', label: 'Emergency Support', action: 'emergency' }
+    ]);
+  }
+
+  private detectLocation(): void {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude } = pos.coords;
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`)
+          .then(r => r.json())
+          .then(data => {
+            const a = data.address || {};
+            this.mockLocation = {
+              country: a.country || this.mockLocation.country,
+              contactNo: this.mockLocation.contactNo,
+              address: [
+                a.road || a.pedestrian || '',
+                a.city || a.town || a.village || '',
+                a.state || '',
+                a.postcode || ''
+              ].filter(Boolean).join(', ') || this.mockLocation.address
+            };
+          })
+          .catch(() => {});
+      },
+      () => {} // silently ignore if denied
+    );
+  }
 
   countryList = [
     'Afghanistan','Albania','Algeria','Argentina','Australia','Austria','Bangladesh','Belgium',
@@ -1094,17 +1170,6 @@ export class DriverComponent implements OnInit, AfterViewChecked {
       el.scrollTop = el.scrollHeight;
       this.cbShouldScroll = false;
     }
-  }
-
-  ngOnInit(): void {
-    this.authService.currentUser$.subscribe(u => this.currentUser = u);
-    this.loadTrip();
-    this.addMessage('agent', `Hello! I'm your Driver AI Assistant. I can help with navigation, vehicle issues, and incident reporting. How can I help?`, [
-      { id: 'a1', label: 'Navigation Help',   action: 'nav_help' },
-      { id: 'a2', label: 'Vehicle Issue',     action: 'vehicle_issue' },
-      { id: 'a3', label: 'Report Delay',      action: 'report_delay' },
-      { id: 'a4', label: 'Emergency Support', action: 'emergency' }
-    ]);
   }
 
   get tripStatusLabel(): string {
@@ -1221,7 +1286,13 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     this.showModal = false;
     this.showDetailsModal = true;
     this.submitted = false;
-    this.form = { vehicleId: '', country: '', contactNo: '', address: '' };
+    // Pre-fill from trip data and mock location
+    this.form = {
+      vehicleId: this.trip?.vehicleId || 'VH-TRK-007',
+      country: this.mockLocation.country,
+      contactNo: this.mockLocation.contactNo,
+      address: this.mockLocation.address
+    };
   }
 
   submitDetails(): void {
@@ -1240,15 +1311,26 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     this.descSubmitted = true;
     const hasContent = this.issueDescription.trim() || this.voiceTranscript.trim() || this.uploadedImages.length > 0;
     if (!hasContent) return;
+    const description = this.issueDescription.trim() || this.voiceTranscript.trim() || 'Issue reported via image';
     this.showDescribeModal = false;
     this.showStepsModal = true;
     this.stepsLoading = true;
     this.issueResolved = false;
-    this.completedSteps = [];
-    this.currentStepIdx = 0;
-    const key = this.selectedCategory?.action || 'diagnose_connection';
-    this.activeSteps = [...(this.stepBank[key] || this.stepBank['diagnose_connection'])];
-    setTimeout(() => { this.stepsLoading = false; }, 1800);
+    this.aiConversation = [];
+    this.aiInput = '';
+
+    // Query KB with the issue description
+    const query = `${this.selectedCategory?.label}: ${description}`;
+    this.kbService.search(query, 5).subscribe(results => {
+      let reply = '';
+      if (results.length > 0) {
+        const combined = results.map(r => r.content).join(' ');
+        reply = this.extractRelevant(combined, query);
+      }
+      if (!reply) reply = this.getKbResponse(description);
+      this.aiConversation = [{ role: 'agent', text: reply, time: new Date() }];
+      this.stepsLoading = false;
+    });
   }
 
   get currentStep() { return this.activeSteps[this.currentStepIdx] ?? null; }
@@ -1259,6 +1341,24 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   }
 
   stepResolved(): void { this.issueResolved = true; }
+
+  aiSend(text: string): void {
+    if (!text?.trim()) return;
+    this.aiInput = '';
+    this.aiConversation = [...this.aiConversation, { role: 'user', text: text.trim(), time: new Date() }];
+    this.stepsLoading = true;
+    const query = `${this.selectedCategory?.label}: ${text.trim()}`;
+    this.kbService.search(query, 5).subscribe(results => {
+      let reply = '';
+      if (results.length > 0) {
+        const combined = results.map(r => r.content).join(' ');
+        reply = this.extractRelevant(combined, text.trim());
+      }
+      if (!reply) reply = this.getKbResponse(text.trim());
+      this.aiConversation = [...this.aiConversation, { role: 'agent', text: reply, time: new Date() }];
+      this.stepsLoading = false;
+    });
+  }
 
   stepNotHelped(): void {
     this.completedSteps.push({ title: this.activeSteps[this.currentStepIdx].title });
