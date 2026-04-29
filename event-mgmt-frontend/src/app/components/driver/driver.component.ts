@@ -59,7 +59,7 @@ import { User } from '../../models';
                   [matTooltip]="trip?.status === 'en-route' ? 'Pause trip' : 'Resume trip'">
             <mat-icon>{{ trip?.status === 'en-route' ? 'pause_circle' : 'play_circle' }}</mat-icon>
           </button>
-          <button class="hdr-btn warn" (click)="showModal=true" matTooltip="Report issue">
+          <button class="hdr-btn warn" (click)="openChatbot()" matTooltip="Report issue">
             <mat-icon>add_alert</mat-icon>
           </button>
 
@@ -88,10 +88,10 @@ import { User } from '../../models';
           </div>
         </div>
         <div class="welcome-actions">
-          <button class="wa-btn primary" (click)="showChatbot=true">
+          <button class="wa-btn primary" (click)="openChatbot()">
             <mat-icon>support_agent</mat-icon> Get AI Help
           </button>
-          <button class="wa-btn outline" (click)="showModal=true">
+          <button class="wa-btn outline" (click)="openChatbot()">
             <mat-icon>add_alert</mat-icon> Report Issue
           </button>
         </div>
@@ -109,7 +109,7 @@ import { User } from '../../models';
           <div class="qa-grid">
 
             <!-- Report Issue card -->
-            <div class="qa-card" (click)="showModal=true">
+            <div class="qa-card" (click)="openChatbot()">
               <div class="qa-icon" style="background:#fce8e6">
                 <mat-icon style="color:#ea4335">add_alert</mat-icon>
               </div>
@@ -228,10 +228,10 @@ import { User } from '../../models';
             <div class="cb-avatar"><mat-icon>support_agent</mat-icon><span class="cb-dot"></span></div>
             <div>
               <div class="cb-name">Driver AI Assistant</div>
-              <div class="cb-status">{{cbTyping ? 'Typing...' : 'Online · Powered by Knowledge Base'}}</div>
+              <div class="cb-status">{{cbTyping ? 'Typing...' : cbListening ? 'Listening...' : 'Online · Voice + Chat'}}</div>
             </div>
           </div>
-          <button class="cb-close" (click)="showChatbot=false"><mat-icon>close</mat-icon></button>
+          <button class="cb-close" (click)="closeChatbot()"><mat-icon>close</mat-icon></button>
         </div>
 
         <!-- Messages -->
@@ -245,17 +245,29 @@ import { User } from '../../models';
           </div>
         </div>
 
-        <!-- Quick suggestions -->
-        <div class="cb-suggestions" *ngIf="cbMessages.length <= 1">
-          <button *ngFor="let s of cbSuggestions" class="cb-chip" (click)="cbSend(s)">{{s}}</button>
+        <!-- Voice orb -->
+        <div class="cb-voice-section">
+          <div class="voice-orb" [class.listening]="cbListening" [class.speaking]="cbSpeaking" (click)="toggleCbVoice()">
+            <mat-icon>{{cbSpeaking ? 'volume_up' : cbListening ? 'mic' : 'mic_none'}}</mat-icon>
+            <div class="orb-ring"></div>
+          </div>
+          <div class="voice-label">{{cbSpeaking ? 'Speaking...' : cbListening ? 'Listening — speak now' : 'Tap to speak'}}</div>
+          <div class="cb-transcript" *ngIf="cbLiveTranscript">{{cbLiveTranscript}}</div>
         </div>
 
-        <!-- Input -->
+        <!-- Optional chat input -->
         <div class="cb-input-bar">
-          <input class="cb-input" [(ngModel)]="cbInput" (keyup.enter)="cbSend(cbInput)"
-                 placeholder="Ask anything about your camera system...">
-          <button class="cb-send" (click)="cbSend(cbInput)" [disabled]="!cbInput.trim()">
+          <input class="cb-input" [(ngModel)]="cbInput" (keyup.enter)="cbSendText(cbInput)"
+                 placeholder="Or type a message...">
+          <button class="cb-send" (click)="cbSendText(cbInput)" [disabled]="!cbInput.trim()">
             <mat-icon>send</mat-icon>
+          </button>
+        </div>
+
+        <!-- Raise ticket action -->
+        <div class="cb-actions" *ngIf="cbMessages.length > 1">
+          <button class="cb-ticket-btn" (click)="closeChatbot(); showModal=true">
+            <mat-icon>confirmation_number</mat-icon> Raise a Support Ticket
           </button>
         </div>
       </div>
@@ -370,13 +382,15 @@ import { User } from '../../models';
           <div class="char-count">{{issueDescription.length}} / 1000</div>
         </div>
         <div *ngIf="describeTab==='voice'" class="describe-body voice-body">
-          <div class="voice-ring" [class.listening]="isListening"><span class="material-icons">{{isListening ? 'mic' : 'mic_none'}}</span></div>
-          <p class="voice-status">{{isListening ? 'Listening... speak now' : voiceTranscript ? 'Recording complete' : 'Click the mic to start'}}</p>
+          <div class="voice-orb" [class.listening]="isListening" (click)="isListening ? stopVoice() : startVoice()">
+            <mat-icon>{{isListening ? 'mic' : 'mic_none'}}</mat-icon>
+            <div class="orb-ring"></div>
+          </div>
+          <p class="voice-status">{{isListening ? 'Listening — speak your issue now' : voiceTranscript ? 'Recording complete — tap to re-record' : 'Tap the mic to start'}}</p>
           <div class="voice-transcript" *ngIf="voiceTranscript"><span class="material-icons">format_quote</span>{{voiceTranscript}}</div>
-          <div class="voice-actions">
-            <button class="btn-outline" *ngIf="!isListening" (click)="startVoice()"><span class="material-icons">mic</span> {{voiceTranscript ? 'Re-record' : 'Start Recording'}}</button>
-            <button class="btn-danger" *ngIf="isListening" (click)="stopVoice()"><span class="material-icons">stop</span> Stop</button>
-            <button class="btn-outline" *ngIf="voiceTranscript" (click)="useTranscript()"><span class="material-icons">check</span> Use This</button>
+          <div class="voice-actions" *ngIf="voiceTranscript && !isListening">
+            <button class="btn-outline" (click)="startVoice()"><span class="material-icons">mic</span> Re-record</button>
+            <button class="btn-primary" (click)="useTranscript(); submitIssue()"><span class="material-icons">send</span> Submit</button>
           </div>
         </div>
         <div *ngIf="describeTab==='image'" class="describe-body image-body">
@@ -443,8 +457,11 @@ import { User } from '../../models';
 
         <!-- Follow-up input -->
         <div class="ai-input-bar" *ngIf="!stepsLoading || aiConversation.length > 0">
+          <div class="ai-voice-orb" [class.listening]="aiListening" (click)="toggleAiVoice()">
+            <mat-icon>{{aiListening ? 'mic' : 'mic_none'}}</mat-icon>
+          </div>
           <input class="ai-input" [(ngModel)]="aiInput" (keyup.enter)="aiSend(aiInput)"
-                 placeholder="Ask a follow-up question...">
+                 placeholder="Or type a follow-up...">
           <button class="ai-send" (click)="aiSend(aiInput)" [disabled]="!aiInput.trim() || stepsLoading">
             <span class="material-icons">send</span>
           </button>
@@ -715,7 +732,7 @@ import { User } from '../../models';
       padding:20px; z-index:2000; animation:bdin 0.15s ease;
     }
     .chatbot-popup {
-      width:380px; height:560px; background:#fff; border-radius:16px;
+      width:380px; height:600px; background:#fff; border-radius:16px;
       box-shadow:0 8px 32px rgba(60,64,67,.3); display:flex; flex-direction:column;
       animation:mup 0.2s ease; overflow:hidden;
     }
@@ -786,9 +803,39 @@ import { User } from '../../models';
       display:flex; align-items:center; justify-content:center;
       transition:background 0.15s; flex-shrink:0;
     }
-    .cb-send:hover { background:#1557b0; }
-    .cb-send:disabled { background:#dadce0; cursor:not-allowed; }
-    .cb-send mat-icon { font-size:16px; }
+    .cb-actions { padding:8px 12px; background:#fff; border-top:1px solid #f1f3f4; flex-shrink:0; }
+    .cb-ticket-btn {
+      display:flex; align-items:center; gap:6px; width:100%;
+      padding:8px 14px; border-radius:6px; border:1px solid #dadce0;
+      background:#fff; color:#ea4335; font-size:13px; font-weight:500;
+      cursor:pointer; transition:all 0.15s; font-family:inherit;
+    }
+    .cb-ticket-btn:hover { background:#fce8e6; border-color:#ea4335; }
+    .cb-ticket-btn mat-icon { font-size:16px; }
+
+    /* Voice orb */
+    .cb-voice-section { display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px 0 8px; flex-shrink:0; }
+    .voice-orb {
+      width:72px; height:72px; border-radius:50%;
+      background:linear-gradient(135deg,#1a73e8,#0d47a1);
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; position:relative; transition:transform 0.15s;
+      box-shadow:0 4px 16px rgba(26,115,232,.4);
+    }
+    .voice-orb:hover { transform:scale(1.05); }
+    .voice-orb mat-icon { color:#fff; font-size:32px; z-index:1; }
+    .voice-orb.listening { background:linear-gradient(135deg,#ea4335,#c5221f); box-shadow:0 4px 20px rgba(234,67,53,.5); }
+    .voice-orb.speaking  { background:linear-gradient(135deg,#34a853,#137333); box-shadow:0 4px 20px rgba(52,168,83,.5); }
+    .orb-ring {
+      position:absolute; inset:-6px; border-radius:50%;
+      border:2px solid rgba(26,115,232,.3);
+      animation:none;
+    }
+    .voice-orb.listening .orb-ring { border-color:rgba(234,67,53,.4); animation:pulse-orb 1s infinite; }
+    .voice-orb.speaking  .orb-ring { border-color:rgba(52,168,83,.4);  animation:pulse-orb 1.5s infinite; }
+    @keyframes pulse-orb { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.15);opacity:0.4} }
+    .voice-label { font-size:12px; color:#5f6368; font-weight:500; }
+    .cb-transcript { font-size:12px; color:#1a73e8; font-style:italic; max-width:280px; text-align:center; }
 
     /* ── Modals (same as dashboard) ── */
     .modal-backdrop { position:fixed; inset:0; background:rgba(32,33,36,.5); display:flex; align-items:center; justify-content:center; z-index:1000; animation:bdin 0.15s ease; }
@@ -901,6 +948,13 @@ import { User } from '../../models';
     .typing-bubble span:nth-child(2) { animation-delay:0.2s; }
     .typing-bubble span:nth-child(3) { animation-delay:0.4s; }
     .ai-input-bar { display:flex; align-items:center; gap:8px; padding:8px 0 0; border-top:1px solid #dadce0; }
+    .ai-voice-orb {
+      width:36px; height:36px; border-radius:50%; background:#1a73e8;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; flex-shrink:0; transition:background 0.15s;
+    }
+    .ai-voice-orb.listening { background:#ea4335; animation:pulse-orb 1s infinite; }
+    .ai-voice-orb .material-icons { font-size:18px; color:#fff; }
     .ai-input { flex:1; border:1px solid #dadce0; border-radius:20px; padding:8px 14px; font-size:13px; color:#202124; outline:none; font-family:inherit; transition:border-color 0.15s; }
     .ai-input:focus { border-color:#1a73e8; }
     .ai-input::placeholder { color:#9aa0a6; }
@@ -961,6 +1015,11 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   showChatbot = false;
   cbInput = '';
   cbTyping = false;
+  cbListening = false;
+  cbSpeaking = false;
+  cbLiveTranscript = '';
+  private cbRecognition: any = null;
+  private cbSynthesis: SpeechSynthesisUtterance | null = null;
   showModal         = false;
   showDetailsModal  = false;
   showDescribeModal = false;
@@ -968,7 +1027,7 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   showTicketModal   = false;
   showTicketSuccess = false;
   cbMessages: { role: 'user'|'agent'; text: string; time: Date }[] = [
-    { role: 'agent', text: 'Hi! I\'m your Driver AI Assistant powered by the Knowledge Base. How can I help you today?', time: new Date() }
+    { role: 'agent', text: 'Hi! I\'m your Driver AI Assistant. Describe your issue by voice or text and I\'ll help you troubleshoot it right away.', time: new Date() }
   ];
   cbSuggestions = ['Camera not connecting', 'GPS signal lost', 'SD card full', 'Software update failed', 'Power issue'];
 
@@ -985,26 +1044,143 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     'default': 'I can help with camera system issues, GPS problems, connectivity, storage, software updates, and power issues. Please describe your problem in more detail and I\'ll guide you through the solution.'
   };
 
-  cbSend(text: string): void {
+  // Open chatbot and auto-start voice
+  openChatbot(): void {
+    this.showChatbot = true;
+    this.cbShouldScroll = true;
+    this.cbMessages = [{ role: 'agent', text: 'Hi! I\'m your Driver AI Assistant. Describe your issue by voice or text and I\'ll help you troubleshoot it right away.', time: new Date() }];
+    this.cbInput = '';
+    this.cbLiveTranscript = '';
+    setTimeout(() => this.startCbVoice(), 400);
+  }
+
+  closeChatbot(): void {
+    this.stopCbVoice();
+    this.stopCbSpeech();
+    this.showChatbot = false;
+  }
+
+  toggleCbVoice(): void {
+    if (this.cbListening) this.stopCbVoice();
+    else this.startCbVoice();
+  }
+
+  private startCbVoice(): void {
+    const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (!SR) {
+      this.cbMessages = [...this.cbMessages, {
+        role: 'agent',
+        text: 'Voice not supported in this browser. Please use Google Chrome or Chromium.',
+        time: new Date()
+      }];
+      return;
+    }
+    if (this.cbRecognition) { try { this.cbRecognition.abort(); } catch {} }
+
+    const doStart = () => {
+      try {
+        const rec = new SR();
+        rec.lang = 'en-US';
+        rec.continuous = false;
+        rec.interimResults = true;
+        rec.maxAlternatives = 1;
+        let final = '';
+        rec.onresult = (e: any) => {
+          let interim = '';
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const t = e.results[i][0].transcript;
+            if (e.results[i].isFinal) final += t;
+            else interim += t;
+          }
+          this.cbLiveTranscript = final || interim;
+        };
+        rec.onerror = (e: any) => {
+          this.cbListening = false;
+          this.cbLiveTranscript = '';
+          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            this.cbMessages = [...this.cbMessages, {
+              role: 'agent',
+              text: 'Microphone blocked. On Linux server: run Chromium with --use-fake-ui-for-media-stream flag, or use the text input below.',
+              time: new Date()
+            }];
+          }
+        };
+        rec.onend = () => {
+          this.cbListening = false;
+          if (final.trim()) {
+            this.cbLiveTranscript = '';
+            this.cbSendMessage(final.trim());
+          }
+        };
+        rec.start();
+        this.cbRecognition = rec;
+        this.cbListening = true;
+        this.cbLiveTranscript = '';
+      } catch (err) {
+        this.cbListening = false;
+        console.warn('SpeechRecognition start failed:', err);
+      }
+    };
+
+    // On remote server HTTP is not secure context — skip getUserMedia and try directly
+    if (window.isSecureContext && navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(() => doStart())
+        .catch(() => doStart()); // try anyway even if getUserMedia fails
+    } else {
+      doStart();
+    }
+  }
+
+  private stopCbVoice(): void {
+    this.cbListening = false;
+    this.cbLiveTranscript = '';
+    try { this.cbRecognition?.stop(); } catch {}
+  }
+
+  private stopCbSpeech(): void {
+    this.cbSpeaking = false;
+    window.speechSynthesis?.cancel();
+  }
+
+  private speakReply(text: string): void {
+    if (!window.speechSynthesis) return;
+    this.stopCbSpeech();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = 'en-US';
+    utt.rate = 1.0;
+    utt.onstart = () => { this.cbSpeaking = true; };
+    utt.onend = () => {
+      this.cbSpeaking = false;
+      // Auto-restart listening after speaking
+      setTimeout(() => { if (this.showChatbot) this.startCbVoice(); }, 300);
+    };
+    utt.onerror = () => { this.cbSpeaking = false; };
+    window.speechSynthesis.speak(utt);
+  }
+
+  cbSendText(text: string): void {
     if (!text?.trim()) return;
     this.cbInput = '';
-    this.cbMessages = [...this.cbMessages, { role: 'user', text: text.trim(), time: new Date() }];
+    this.cbSendMessage(text.trim());
+  }
+
+  private cbSendMessage(text: string): void {
+    this.stopCbVoice();
+    this.cbMessages = [...this.cbMessages, { role: 'user', text, time: new Date() }];
     this.cbTyping = true;
     this.cbShouldScroll = true;
 
-    this.kbService.search(text.trim(), 3).subscribe(results => {
-      console.log('[KB search results]', results);
+    this.kbService.search(text, 3).subscribe(results => {
       let reply = '';
       if (results.length > 0) {
-        // Extract most relevant sentences from top results
-        const combined = results.map(r => r.content).join(' ');
-        reply = this.extractRelevant(combined, text.trim());
-      } else {
-        reply = this.getKbResponse(text.trim());
+        reply = this.extractRelevant(results.map(r => r.content).join(' '), text);
       }
+      if (!reply) reply = this.getKbResponse(text);
       this.cbMessages = [...this.cbMessages, { role: 'agent', text: reply, time: new Date() }];
       this.cbTyping = false;
       this.cbShouldScroll = true;
+      this.speakReply(reply);
     });
   }
 
@@ -1049,6 +1225,8 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   issueResolved   = false;
   aiConversation: { role: 'user'|'agent'; text: string; time: Date }[] = [];
   aiInput = '';
+  aiListening = false;
+  private aiRecognition: any = null;
   ticket = { title: '', priority: 'medium', description: '' };
   createdTicketId = '';
   form = { vehicleId: '', country: '', contactNo: '', address: '' };
@@ -1330,6 +1508,7 @@ export class DriverComponent implements OnInit, AfterViewChecked {
       if (!reply) reply = this.getKbResponse(description);
       this.aiConversation = [{ role: 'agent', text: reply, time: new Date() }];
       this.stepsLoading = false;
+      this.speakAndListen(reply);
     });
   }
 
@@ -1345,6 +1524,8 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   aiSend(text: string): void {
     if (!text?.trim()) return;
     this.aiInput = '';
+    this.aiListening = false;
+    try { this.aiRecognition?.stop(); } catch {}
     this.aiConversation = [...this.aiConversation, { role: 'user', text: text.trim(), time: new Date() }];
     this.stepsLoading = true;
     const query = `${this.selectedCategory?.label}: ${text.trim()}`;
@@ -1357,7 +1538,59 @@ export class DriverComponent implements OnInit, AfterViewChecked {
       if (!reply) reply = this.getKbResponse(text.trim());
       this.aiConversation = [...this.aiConversation, { role: 'agent', text: reply, time: new Date() }];
       this.stepsLoading = false;
+      this.speakAndListen(reply);
     });
+  }
+
+  toggleAiVoice(): void {
+    if (this.aiListening) {
+      this.aiListening = false;
+      try { this.aiRecognition?.abort(); } catch {}
+      return;
+    }
+    const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (!SR) return;
+    const doStart = () => {
+      try {
+        const rec = new SR();
+        rec.lang = 'en-US';
+        rec.continuous = false;
+        rec.interimResults = true;
+        let final = '';
+        rec.onresult = (e: any) => {
+          let interim = '';
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const t = e.results[i][0].transcript;
+            if (e.results[i].isFinal) final += t;
+            else interim += t;
+          }
+          this.aiInput = final || interim;
+        };
+        rec.onerror = () => { this.aiListening = false; };
+        rec.onend = () => {
+          this.aiListening = false;
+          if (final.trim()) { this.aiSend(final.trim()); }
+        };
+        rec.start();
+        this.aiRecognition = rec;
+        this.aiListening = true;
+      } catch { this.aiListening = false; }
+    };
+    if (window.isSecureContext && navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(() => doStart()).catch(() => doStart());
+    } else { doStart(); }
+  }
+
+  private speakAndListen(text: string): void {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = 'en-US';
+    utt.rate = 1.0;
+    utt.onend = () => {
+      if (this.showStepsModal) setTimeout(() => this.toggleAiVoice(), 300);
+    };
+    window.speechSynthesis.speak(utt);
   }
 
   stepNotHelped(): void {
@@ -1402,59 +1635,68 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     this.submitted = false; this.descSubmitted = false; this.ticketSubmitted = false;
     this.issueResolved = false;
     this.isListening = false;
+    this.aiListening = false;
     try { this.recognition?.stop(); } catch {}
+    try { this.aiRecognition?.stop(); } catch {}
+    window.speechSynthesis?.cancel();
   }
 
   switchToVoice(): void {
     this.describeTab = 'voice';
-    // Don't auto-start — let user press the mic button
+    setTimeout(() => this.startVoice(), 300);
   }
 
   startVoice(): void {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SR = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SR) {
       alert('Speech recognition not supported. Please use Chromium or Google Chrome.');
       return;
     }
-    if (this.recognition) { try { this.recognition.stop(); } catch {} }
+    if (this.recognition) { try { this.recognition.abort(); } catch {} }
     this.voiceTranscript = '';
 
-    const startRec = () => {
-      this.recognition = new SR();
-      this.recognition.lang = 'en-US';
-      this.recognition.continuous = true;
-      this.recognition.interimResults = true;
-      this.recognition.maxAlternatives = 1;
-      let finalText = '';
-      this.recognition.onresult = (e: any) => {
-        let interim = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) finalText += t;
-          else interim += t;
-        }
-        this.voiceTranscript = finalText || interim;
-      };
-      this.recognition.onerror = (e: any) => {
-        if (e.error === 'aborted' || e.error === 'no-speech') return;
+    const doStart = () => {
+      try {
+        const rec = new SR();
+        rec.lang = 'en-US';
+        rec.continuous = false;
+        rec.interimResults = true;
+        rec.maxAlternatives = 1;
+        let finalText = '';
+        rec.onresult = (e: any) => {
+          let interim = '';
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const t = e.results[i][0].transcript;
+            if (e.results[i].isFinal) finalText += t;
+            else interim += t;
+          }
+          this.voiceTranscript = finalText || interim;
+        };
+        rec.onerror = (e: any) => {
+          this.isListening = false;
+          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            alert('Microphone blocked.\nOn Linux server run Chromium with:\n--use-fake-ui-for-media-stream\nor access via HTTPS.');
+          }
+        };
+        rec.onend = () => {
+          this.isListening = false;
+          if (finalText.trim()) this.voiceTranscript = finalText.trim();
+        };
+        rec.start();
+        this.recognition = rec;
+        this.isListening = true;
+      } catch (err) {
         this.isListening = false;
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          alert('Microphone denied.\nOn Debian/Linux: browser Settings > Privacy > Microphone > allow this site.');
-        }
-      };
-      this.recognition.onend = () => {
-        if (this.isListening) { try { this.recognition.start(); } catch { this.isListening = false; } }
-      };
-      try { this.recognition.start(); this.isListening = true; }
-      catch { alert('Could not start microphone. Please try again.'); }
+        console.warn('Voice start failed:', err);
+      }
     };
 
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    if (window.isSecureContext && navigator.mediaDevices?.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(() => startRec())
-        .catch(() => alert('Microphone access denied.\nOn Debian/Linux: check browser site permissions and ensure no other app is using the mic.'));
+        .then(() => doStart())
+        .catch(() => doStart());
     } else {
-      startRec();
+      doStart();
     }
   }
 
