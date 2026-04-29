@@ -39,7 +39,10 @@ export interface KbStats {
 
 @Injectable({ providedIn: 'root' })
 export class KnowledgeBaseService {
-  private base = environment.apiUrl;
+  private get base(): string {
+    // Read at call time so index.html script tag can override it
+    return (window as any)['__API_URL__'] || environment.apiUrl || `${location.protocol}//${location.hostname}:8000`;
+  }
 
   constructor(private http: HttpClient, private auth: AuthService) {}
 
