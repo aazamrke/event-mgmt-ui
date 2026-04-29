@@ -110,8 +110,21 @@ export class KnowledgeBaseService {
   search(query: string, topK = 5, category?: string): Observable<KbSearchResult[]> {
     const body: any = { query, top_k: topK };
     if (category) body.category = category;
-    return this.http.post<KbSearchResult[]>(`${this.base}/kb/search`, body, { headers: this.headers() })
-      .pipe(catchError(() => of([])));
+    return this.http.post<any>(`${this.base}/kb/search`, body, { headers: this.headers() })
+      .pipe(
+        map(res => {
+          console.log('[KB search raw]', res);
+          // Handle array or wrapped response
+          if (Array.isArray(res)) return res as KbSearchResult[];
+          if (Array.isArray(res?.results)) return res.results as KbSearchResult[];
+          if (Array.isArray(res?.data)) return res.data as KbSearchResult[];
+          return [];
+        }),
+        catchError(err => {
+          console.error('[KB search error]', err?.status, err?.message, err?.error);
+          return of([]);
+        })
+      );
   }
 
   // GET /kb/stats
