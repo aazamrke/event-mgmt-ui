@@ -1413,54 +1413,48 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   startVoice(): void {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
-      alert('Speech recognition is not supported in this browser. Please use Google Chrome.');
+      alert('Speech recognition not supported. Please use Chromium or Google Chrome.');
       return;
     }
-    if (!window.isSecureContext) {
-      alert('Microphone requires HTTPS or localhost.');
-      return;
-    }
-    // Stop any existing session first
-    if (this.recognition) {
-      try { this.recognition.stop(); } catch {}
-    }
+    if (this.recognition) { try { this.recognition.stop(); } catch {} }
     this.voiceTranscript = '';
-    this.recognition = new SR();
-    this.recognition.lang = 'en-US';
-    this.recognition.continuous = true;
-    this.recognition.interimResults = true;
-    this.recognition.maxAlternatives = 1;
 
-    let finalText = '';
-
-    this.recognition.onresult = (e: any) => {
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText += t;
-        else interim += t;
-      }
-      this.voiceTranscript = finalText || interim;
+    const startRec = () => {
+      this.recognition = new SR();
+      this.recognition.lang = 'en-US';
+      this.recognition.continuous = true;
+      this.recognition.interimResults = true;
+      this.recognition.maxAlternatives = 1;
+      let finalText = '';
+      this.recognition.onresult = (e: any) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) finalText += t;
+          else interim += t;
+        }
+        this.voiceTranscript = finalText || interim;
+      };
+      this.recognition.onerror = (e: any) => {
+        if (e.error === 'aborted' || e.error === 'no-speech') return;
+        this.isListening = false;
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          alert('Microphone denied.\nOn Debian/Linux: browser Settings > Privacy > Microphone > allow this site.');
+        }
+      };
+      this.recognition.onend = () => {
+        if (this.isListening) { try { this.recognition.start(); } catch { this.isListening = false; } }
+      };
+      try { this.recognition.start(); this.isListening = true; }
+      catch { alert('Could not start microphone. Please try again.'); }
     };
 
-    this.recognition.onerror = (e: any) => {
-      if (e.error === 'aborted' || e.error === 'no-speech') return;
-      this.isListening = false;
-      if (e.error === 'not-allowed') alert('Microphone access denied. Please allow microphone in browser settings.');
-    };
-
-    this.recognition.onend = () => {
-      // Restart if still in listening state (handles Chrome auto-stop)
-      if (this.isListening) {
-        try { this.recognition.start(); } catch { this.isListening = false; }
-      }
-    };
-
-    try {
-      this.recognition.start();
-      this.isListening = true;
-    } catch (e) {
-      alert('Could not start microphone. Please try again.');
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(() => startRec())
+        .catch(() => alert('Microphone access denied.\nOn Debian/Linux: check browser site permissions and ensure no other app is using the mic.'));
+    } else {
+      startRec();
     }
   }
 
