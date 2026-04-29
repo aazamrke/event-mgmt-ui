@@ -40,8 +40,8 @@ export interface KbStats {
 @Injectable({ providedIn: 'root' })
 export class KnowledgeBaseService {
   private get base(): string {
-    // Read at call time so index.html script tag can override it
-    return (window as any)['__API_URL__'] || environment.apiUrl || `${location.protocol}//${location.hostname}:8000`;
+    const url = (window as any)['__API_URL__'] || environment.apiUrl || `${location.protocol}//${location.hostname}:8000`;
+    return url;
   }
 
   constructor(private http: HttpClient, private auth: AuthService) {}
@@ -113,18 +113,24 @@ export class KnowledgeBaseService {
   search(query: string, topK = 5, category?: string): Observable<KbSearchResult[]> {
     const body: any = { query, top_k: topK };
     if (category) body.category = category;
-    return this.http.post<any>(`${this.base}/kb/search`, body, { headers: this.headers() })
+    const url = `${this.base}/kb/search`;
+    console.log('[KB search] POST', url, body);
+    return this.http.post<any>(url, body, { headers: this.headers() })
       .pipe(
         map(res => {
-          console.log('[KB search raw]', res);
-          // Handle array or wrapped response
+          console.log('[KB search response]', JSON.stringify(res));
           if (Array.isArray(res)) return res as KbSearchResult[];
           if (Array.isArray(res?.results)) return res.results as KbSearchResult[];
           if (Array.isArray(res?.data)) return res.data as KbSearchResult[];
+          if (Array.isArray(res?.chunks)) return res.chunks as KbSearchResult[];
+          if (Array.isArray(res?.items)) return res.items as KbSearchResult[];
+          // If response is object with content field, wrap it
+          if (res?.content) return [{ content: res.content, score: 1, id: '1', document_id: '1', filename: '', chunk_index: 0 }];
+          console.warn('[KB search] unexpected shape:', res);
           return [];
         }),
         catchError(err => {
-          console.error('[KB search error]', err?.status, err?.message, err?.error);
+          console.error('[KB search FAILED]', err?.status, err?.statusText, err?.url, err?.error);
           return of([]);
         })
       );
