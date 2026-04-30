@@ -10,7 +10,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script>
-    window.__API_URL__ = 'http://localhost:8000';
+    // Always use same host as frontend, just different port
+    // This works whether accessed via localhost, LAN IP, or external IP
+    window.__API_URL__ = window.location.protocol + '//' + window.location.hostname + ':8000';
     console.log('[API URL]', window.__API_URL__);
   </script>
 </head>
