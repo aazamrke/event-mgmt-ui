@@ -1224,6 +1224,18 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     this.cbTyping = true;
     this.cbShouldScroll = true;
 
+    // Check if question is about vehicle/driver/trip info
+    const localAnswer = this.getLocalInfo(text);
+    if (localAnswer) {
+      setTimeout(() => {
+        this.cbMessages = [...this.cbMessages, { role: 'agent', text: localAnswer, time: new Date() }];
+        this.cbTyping = false;
+        this.cbShouldScroll = true;
+        this.speakReply(localAnswer);
+      }, 400);
+      return;
+    }
+
     // Build context from last 3 exchanges
     const history = this.cbMessages
       .slice(-6)
@@ -1239,6 +1251,53 @@ export class DriverComponent implements OnInit, AfterViewChecked {
       this.cbShouldScroll = true;
       this.speakReply(reply);
     });
+  }
+
+  private getLocalInfo(query: string): string {
+    const q = query.toLowerCase();
+    const t = this.trip;
+    const u = this.currentUser;
+
+    // Driver info
+    if (q.match(/who.*driver|driver.*name|my name|driver info/)) {
+      return `The driver is ${t?.driverName || u?.email?.split('@')[0] || 'Unknown'}. Email: ${u?.email || 'N/A'}. Role: ${u?.role || 'driver'}.`;
+    }
+    // Vehicle info
+    if (q.match(/vehicle|truck|car|van|plate|registration/)) {
+      if (!t) return 'No vehicle information available.';
+      return `Vehicle ID: ${t.vehicleId}. Status: ${t.status}. Speed: ${t.speedKmh} km/h. Fuel: ${t.fuelLevel}%. Engine temp: ${t.engineTemp}°C.`;
+    }
+    // Trip info
+    if (q.match(/trip|route|journey|stops|destination/)) {
+      if (!t) return 'No active trip.';
+      return `Trip ID: ${t.tripId}. Status: ${t.status}. ${t.completedStops} of ${t.totalStops} stops completed. Distance: ${t.distanceKm} km.`;
+    }
+    // Fuel
+    if (q.match(/fuel|gas|petrol|diesel/)) {
+      return t ? `Fuel level is ${t.fuelLevel}%.${t.fuelLevel < 20 ? ' Warning: fuel is low!' : ''}` : 'No vehicle data.';
+    }
+    // Speed
+    if (q.match(/speed|fast|slow|km/)) {
+      return t ? `Current speed is ${t.speedKmh} km/h.` : 'No vehicle data.';
+    }
+    // Engine / temperature
+    if (q.match(/engine|temp|heat|overheat/)) {
+      return t ? `Engine temperature is ${t.engineTemp}°C.${t.engineTemp > 100 ? ' Warning: engine is running hot!' : ' Normal range.'}` : 'No vehicle data.';
+    }
+    // Next stop
+    if (q.match(/next stop|where.*go|current stop|location/)) {
+      if (!t) return 'No active trip.';
+      const next = t.stops.find(s => s.status === 'pending');
+      const current = t.stops.find(s => s.status === 'arrived');
+      if (current) return `Currently at: ${current.address}. ETA for next stop: ${next?.eta || 'N/A'} — ${next?.address || 'No more stops'}.`;
+      return next ? `Next stop: ${next.address} at ${next.eta}.` : 'All stops completed.';
+    }
+    // Incidents
+    if (q.match(/incident|issue|problem|report/)) {
+      const open = this.incidents.filter(i => i.status === 'open').length;
+      return open > 0 ? `There are ${open} open incident(s) reported.` : 'No open incidents.';
+    }
+    return '';
   }
 
   private extractRelevant(raw: string, query: string): string {
