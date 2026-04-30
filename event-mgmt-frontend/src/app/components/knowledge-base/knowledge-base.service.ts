@@ -3,7 +3,6 @@ import { HttpClient, HttpHeaders, HttpRequest, HttpEventType } from '@angular/co
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.service';
-import { environment } from '../../../environments/environment';
 
 export interface KbDocument {
   id: string;
@@ -24,24 +23,14 @@ export interface KbSearchResult {
   content: string;
   score: number;
   chunk_index: number;
-  metadata?: Record<string, any>;
-}
-
-export interface KbStats {
-  total_documents: number;
-  total_chunks: number;
-  indexed_documents: number;
-  processing_documents: number;
-  failed_documents: number;
-  vector_db_size_mb: number;
-  last_updated: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class KnowledgeBaseService {
+
   private get base(): string {
-    const url = (window as any)['__API_URL__'] || environment.apiUrl || `${location.protocol}//${location.hostname}:8000`;
-    return url;
+    const h = window.location.hostname;
+    return (h === 'localhost' || h === '127.0.0.1') ? 'http://localhost:8000' : '';
   }
 
   constructor(private http: HttpClient, private auth: AuthService) {}
@@ -51,13 +40,50 @@ export class KnowledgeBaseService {
     return new HttpHeaders({ Authorization: token ? `Bearer ${token}` : '' });
   }
 
+  // POST /kb/search — backend returns { answer, sources, found }
+  ask(question: string): Observable<string> {
+    return this.http.post<any>(`${this.base}/kb/search`, {
+      query: question,
+      top_k: 5,
+      score_threshold: 0.1
+    }, { headers: this.headers() }).pipe(
+      map(res => {
+        // Backend returns { answer: "...", sources: [...], found: true }
+        if (res?.answer) return String(res.answer).trim();
+        // Fallback: combine sources content
+        if (Array.isArray(res?.sources) && res.sources.length > 0) {
+          return res.sources.map((s: any) => s.content || '').filter(Boolean).join(' ').trim();
+        }
+        return '';
+      }),
+      catchError(() => of(''))
+    );
+  }
+
+  // POST /kb/search — returns sources array
+  search(query: string, topK = 5, category?: string): Observable<KbSearchResult[]> {
+    const body: any = { query, top_k: topK, score_threshold: 0.1 };
+    if (category) body.category = category;
+    return this.http.post<any>(`${this.base}/kb/search`, body, { headers: this.headers() })
+      .pipe(
+        map(res => {
+          // Response shape: { answer, sources: [...], found }
+          if (Array.isArray(res?.sources)) return res.sources as KbSearchResult[];
+          if (Array.isArray(res)) return res as KbSearchResult[];
+          if (Array.isArray(res?.results)) return res.results;
+          return [];
+        }),
+        catchError(() => of([]))
+      );
+  }
+
   // GET /kb/documents
   getDocuments(): Observable<KbDocument[]> {
     return this.http.get<KbDocument[]>(`${this.base}/kb/documents`, { headers: this.headers() })
       .pipe(catchError(() => of([])));
   }
 
-  // POST /kb/documents  (multipart upload with progress)
+  // POST /kb/documents (multipart upload with progress)
   uploadDocument(file: File, category: string, description: string): Observable<{ progress: number; document?: KbDocument }> {
     const fd = new FormData();
     fd.append('file', file);
@@ -87,58 +113,9 @@ export class KnowledgeBaseService {
       .pipe(catchError(() => of(undefined as any)));
   }
 
-  // POST /kb/documents/:id/reindex
-  reindexDocument(id: string): Observable<KbDocument> {
-    return this.http.post<KbDocument>(`${this.base}/kb/documents/${id}/reindex`, {}, { headers: this.headers() })
-      .pipe(catchError(() => of({} as KbDocument)));
-  }
-
-  // POST /ask
-  ask(question: string): Observable<string> {
-    return this.http.post<any>(`${this.base}/ask`, { query: question }, { headers: this.headers() })
-      .pipe(
-        map(res => {
-          console.log('[/ask raw response]', res);
-          const raw = res?.answer ?? res?.response ?? res?.text ?? res?.result ?? res?.data ?? '';
-          return String(raw).trim();
-        }),
-        catchError(err => {
-          console.error('[/ask error]', err?.status, err?.error);
-          return of('__error__');
-        })
-      );
-  }
-
-  // POST /kb/search
-  search(query: string, topK = 5, category?: string): Observable<KbSearchResult[]> {
-    const body: any = { query, top_k: topK };
-    if (category) body.category = category;
-    const url = `${this.base}/kb/search`;
-    console.log('[KB search] POST', url, body);
-    return this.http.post<any>(url, body, { headers: this.headers() })
-      .pipe(
-        map(res => {
-          console.log('[KB search response]', JSON.stringify(res));
-          if (Array.isArray(res)) return res as KbSearchResult[];
-          if (Array.isArray(res?.results)) return res.results as KbSearchResult[];
-          if (Array.isArray(res?.data)) return res.data as KbSearchResult[];
-          if (Array.isArray(res?.chunks)) return res.chunks as KbSearchResult[];
-          if (Array.isArray(res?.items)) return res.items as KbSearchResult[];
-          // If response is object with content field, wrap it
-          if (res?.content) return [{ content: res.content, score: 1, id: '1', document_id: '1', filename: '', chunk_index: 0 }];
-          console.warn('[KB search] unexpected shape:', res);
-          return [];
-        }),
-        catchError(err => {
-          console.error('[KB search FAILED]', err?.status, err?.statusText, err?.url, err?.error);
-          return of([]);
-        })
-      );
-  }
-
   // GET /kb/stats
-  getStats(): Observable<KbStats> {
-    return this.http.get<KbStats>(`${this.base}/kb/stats`, { headers: this.headers() })
+  getStats(): Observable<any> {
+    return this.http.get<any>(`${this.base}/kb/stats`, { headers: this.headers() })
       .pipe(catchError(() => of({
         total_documents: 0, total_chunks: 0, indexed_documents: 0,
         processing_documents: 0, failed_documents: 0,
@@ -146,7 +123,7 @@ export class KnowledgeBaseService {
       })));
   }
 
-  // POST /kb/rebuild  — rebuild entire vector index
+  // POST /kb/rebuild
   rebuildIndex(): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${this.base}/kb/rebuild`, {}, { headers: this.headers() })
       .pipe(catchError(() => of({ message: 'Rebuild triggered' })));

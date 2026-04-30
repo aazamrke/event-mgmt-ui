@@ -53,7 +53,7 @@ import { VoiceService, VoiceState } from './services/voice.service';
         <!-- Linux/Ubuntu voice warning -->
         <div class="voice-warning" *ngIf="showLinuxWarning">
           <mat-icon>info</mat-icon>
-          <span>On Linux, voice recognition requires <strong>Google Chrome</strong> and microphone permission. <a href="https://support.google.com/chrome/answer/2693767" target="_blank">How to allow mic</a></span>
+          <span>On Linux, voice recognition requires <strong>Google Chrome</strong> and microphone permission. <a href="https://support.google.com/chrome/answer/2693767" target="_blank" rel="noopener noreferrer">How to allow mic</a></span>
           <button mat-icon-button (click)="dismissLinuxWarning()"><mat-icon>close</mat-icon></button>
         </div>
 
@@ -407,7 +407,7 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked, OnDestr
       this.voiceService.stopListening();
     } else {
       this.voiceService.startListening().catch(err => {
-        console.error('startListening error:', err);
+        console.error('startListening error:', String(err?.message || err).replace(/[\r\n]/g, ''));
       });
     }
   }

@@ -77,12 +77,14 @@ export class VoiceService {
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch (err: any) {
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      const errName = String(err?.name || '').replace(/[\r\n]/g, '');
+      const errMsg  = String(err?.message || '').replace(/[\r\n]/g, '');
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
         this.emitError('Microphone access denied. Click the 🔒 icon in the address bar and allow microphone.');
-      } else if (err.name === 'NotFoundError') {
+      } else if (errName === 'NotFoundError') {
         this.emitError('No microphone found. Please connect a microphone and try again.');
       } else {
-        this.emitError(`Microphone error: ${err.message}`);
+        this.emitError(`Microphone error: ${errMsg}`);
       }
       return;
     }
@@ -129,7 +131,7 @@ export class VoiceService {
     utterance.onend   = () => this.zone.run(() => this.stateSubject.next('idle'));
     utterance.onerror = (e) => {
       if (e.error !== 'interrupted' && e.error !== 'canceled') {
-        console.warn('TTS error:', e.error);
+        console.warn('TTS error:', String(e.error).replace(/[\r\n]/g, ''));
       }
       this.zone.run(() => this.stateSubject.next('idle'));
     };
@@ -211,7 +213,7 @@ export class VoiceService {
             'Network error: Chrome Speech API needs internet. Check your connection or try again.'
           );
         } else {
-          this.emitError(`Speech error: ${error}`);
+          this.emitError(`Speech error: ${String(error).replace(/[\r\n]/g, '')}`);
         }
 
         this.stopVolumeMonitor();
@@ -224,7 +226,7 @@ export class VoiceService {
       this.recognition.start();
     } catch (e: any) {
       if (e?.name !== 'InvalidStateError') {
-        this.emitError('Could not start speech recognition: ' + e?.message);
+        this.emitError('Could not start speech recognition: ' + String(e?.message || '').replace(/[\r\n]/g, ''));
         this.stateSubject.next('idle');
       }
     }

@@ -1122,11 +1122,21 @@ export class DriverComponent implements OnInit, AfterViewChecked {
       }
     };
 
-    // On remote server HTTP is not secure context — skip getUserMedia and try directly
     if (window.isSecureContext && navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(() => doStart())
-        .catch(() => doStart()); // try anyway even if getUserMedia fails
+      navigator.permissions.query({ name: 'microphone' as PermissionName })
+        .then(status => {
+          if (status.state === 'denied') {
+            this.cbMessages = [...this.cbMessages, { role: 'agent', text: 'Microphone permission denied. Please allow microphone access in browser settings.', time: new Date() }];
+            return;
+          }
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(() => doStart())
+            .catch(() => doStart());
+        })
+        .catch(() => {
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(() => doStart()).catch(() => doStart());
+        });
     } else {
       doStart();
     }
@@ -1171,12 +1181,16 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     this.cbTyping = true;
     this.cbShouldScroll = true;
 
-    this.kbService.search(text, 3).subscribe(results => {
-      let reply = '';
-      if (results.length > 0) {
-        reply = this.extractRelevant(results.map(r => r.content).join(' '), text);
-      }
-      if (!reply) reply = this.getKbResponse(text);
+    // Build context from last 3 exchanges
+    const history = this.cbMessages
+      .slice(-6)
+      .filter(m => m.role === 'user')
+      .map(m => m.text)
+      .join('. ');
+    const contextualQuery = history ? `${history}. ${text}` : text;
+
+    this.kbService.ask(contextualQuery).subscribe(answer => {
+      const reply = (answer && answer.length > 3) ? answer : this.getKbResponse(text);
       this.cbMessages = [...this.cbMessages, { role: 'agent', text: reply, time: new Date() }];
       this.cbTyping = false;
       this.cbShouldScroll = true;
@@ -1251,28 +1265,51 @@ export class DriverComponent implements OnInit, AfterViewChecked {
 
   private detectLocation(): void {
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const { latitude, longitude } = pos.coords;
-        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`)
-          .then(r => r.json())
-          .then(data => {
-            const a = data.address || {};
-            this.mockLocation = {
-              country: a.country || this.mockLocation.country,
-              contactNo: this.mockLocation.contactNo,
-              address: [
-                a.road || a.pedestrian || '',
-                a.city || a.town || a.village || '',
-                a.state || '',
-                a.postcode || ''
-              ].filter(Boolean).join(', ') || this.mockLocation.address
-            };
-          })
-          .catch(() => {});
-      },
-      () => {} // silently ignore if denied
-    );
+    navigator.permissions.query({ name: 'geolocation' as PermissionName })
+      .then(status => {
+        if (status.state === 'denied') return;
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            const { latitude, longitude } = pos.coords;
+            fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`)
+              .then(r => r.json())
+              .then(data => {
+                const a = data.address || {};
+                this.mockLocation = {
+                  country: a.country || this.mockLocation.country,
+                  contactNo: this.mockLocation.contactNo,
+                  address: [
+                    a.road || a.pedestrian || '',
+                    a.city || a.town || a.village || '',
+                    a.state || '',
+                    a.postcode || ''
+                  ].filter(Boolean).join(', ') || this.mockLocation.address
+                };
+              })
+              .catch(() => {});
+          },
+          () => {}
+        );
+      })
+      .catch(() => {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            const { latitude, longitude } = pos.coords;
+            fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`)
+              .then(r => r.json())
+              .then(data => {
+                const a = data.address || {};
+                this.mockLocation = {
+                  country: a.country || this.mockLocation.country,
+                  contactNo: this.mockLocation.contactNo,
+                  address: [a.road || '', a.city || a.town || '', a.state || '', a.postcode || '']
+                    .filter(Boolean).join(', ') || this.mockLocation.address
+                };
+              }).catch(() => {});
+          },
+          () => {}
+        );
+      });
   }
 
   countryList = [
@@ -1497,15 +1534,9 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     this.aiConversation = [];
     this.aiInput = '';
 
-    // Query KB with the issue description
-    const query = `${this.selectedCategory?.label}: ${description}`;
-    this.kbService.search(query, 5).subscribe(results => {
-      let reply = '';
-      if (results.length > 0) {
-        const combined = results.map(r => r.content).join(' ');
-        reply = this.extractRelevant(combined, query);
-      }
-      if (!reply) reply = this.getKbResponse(description);
+    const query = description;
+    this.kbService.ask(query).subscribe(answer => {
+      const reply = (answer && answer.length > 3) ? answer : this.getKbResponse(description);
       this.aiConversation = [{ role: 'agent', text: reply, time: new Date() }];
       this.stepsLoading = false;
       this.speakAndListen(reply);
@@ -1528,14 +1559,17 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     try { this.aiRecognition?.stop(); } catch {}
     this.aiConversation = [...this.aiConversation, { role: 'user', text: text.trim(), time: new Date() }];
     this.stepsLoading = true;
-    const query = `${this.selectedCategory?.label}: ${text.trim()}`;
-    this.kbService.search(query, 5).subscribe(results => {
-      let reply = '';
-      if (results.length > 0) {
-        const combined = results.map(r => r.content).join(' ');
-        reply = this.extractRelevant(combined, text.trim());
-      }
-      if (!reply) reply = this.getKbResponse(text.trim());
+
+    // Include recent conversation context
+    const history = this.aiConversation
+      .slice(-4)
+      .filter(m => m.role === 'user')
+      .map(m => m.text)
+      .join('. ');
+    const contextualQuery = history ? `${history}. ${text.trim()}` : text.trim();
+
+    this.kbService.ask(contextualQuery).subscribe(answer => {
+      const reply = (answer && answer.length > 3) ? answer : this.getKbResponse(text.trim());
       this.aiConversation = [...this.aiConversation, { role: 'agent', text: reply, time: new Date() }];
       this.stepsLoading = false;
       this.speakAndListen(reply);
@@ -1577,7 +1611,14 @@ export class DriverComponent implements OnInit, AfterViewChecked {
       } catch { this.aiListening = false; }
     };
     if (window.isSecureContext && navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(() => doStart()).catch(() => doStart());
+      navigator.permissions.query({ name: 'microphone' as PermissionName })
+        .then(status => {
+          if (status.state === 'denied') { this.aiListening = false; return; }
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(() => doStart()).catch(() => doStart());
+        })
+        .catch(() => {
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(() => doStart()).catch(() => doStart());
+        });
     } else { doStart(); }
   }
 
@@ -1692,18 +1733,27 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     };
 
     if (window.isSecureContext && navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(() => doStart())
-        .catch(() => doStart());
+      navigator.permissions.query({ name: 'microphone' as PermissionName })
+        .then(status => {
+          if (status.state === 'denied') { this.isListening = false; return; }
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(() => doStart()).catch(() => doStart());
+        })
+        .catch(() => {
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(() => doStart()).catch(() => doStart());
+        });
     } else {
       doStart();
     }
-  }
-
-  stopVoice(): void {
     this.isListening = false; // set first so onend doesn't restart
     try { this.recognition?.stop(); } catch {}
   }
+  stopVoice(): void {
+    this.isListening = false;
+    try { this.recognition?.stop(); } catch {}
+  }
+
   useTranscript(): void { this.issueDescription = this.voiceTranscript; this.describeTab = 'text'; }
 
   onFileChange(e: Event): void {

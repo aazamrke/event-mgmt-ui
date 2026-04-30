@@ -122,7 +122,7 @@ import { VoiceService, VoiceState } from './services/voice.service';
       <div class="linux-warn" *ngIf="showLinuxWarning">
         <mat-icon>info_outline</mat-icon>
         <span>On Linux, voice requires <strong>Google Chrome</strong> + mic permission.
-          <a href="https://support.google.com/chrome/answer/2693767" target="_blank">Learn more</a>
+          <a href="https://support.google.com/chrome/answer/2693767" target="_blank" rel="noopener noreferrer">Learn more</a>
         </span>
         <button class="icon-btn" (click)="showLinuxWarning = false"><mat-icon>close</mat-icon></button>
       </div>
@@ -451,7 +451,7 @@ export class ChatPanelComponent implements OnInit, AfterViewChecked, OnDestroy {
     if (this.voiceState === 'listening') {
       this.voiceService.stopListening();
     } else {
-      this.voiceService.startListening().catch(err => console.error(err));
+      this.voiceService.startListening().catch(err => console.error(String(err?.message || err).replace(/[\r\n]/g, '')));
     }
   }
 

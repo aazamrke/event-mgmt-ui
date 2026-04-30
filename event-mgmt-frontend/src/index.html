@@ -10,10 +10,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script>
-    // Always use same host as frontend, just different port
-    // This works whether accessed via localhost, LAN IP, or external IP
-    window.__API_URL__ = window.location.protocol + '//' + window.location.hostname + ':8000';
-    console.log('[API URL]', window.__API_URL__);
+    var host = window.location.hostname;
+    // On localhost/127.0.0.1 (Windows dev): call backend directly
+    // On remote server: use proxy (empty string = relative URL)
+    if (host === 'localhost' || host === '127.0.0.1') {
+      window.__API_URL__ = 'http://localhost:8000';
+    } else {
+      window.__API_URL__ = '';  // uses Angular proxy -> localhost:8000 on server
+    }
+    console.log('[API URL]', window.__API_URL__ || '(proxy)');
   </script>
 </head>
 <body class="mat-typography">

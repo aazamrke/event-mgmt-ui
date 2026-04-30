@@ -9,7 +9,7 @@ import { AuthResponse, User } from '../models';
 })
 export class AuthService {
   private get apiUrl(): string {
-    return (window as any)['__API_URL__'] || `${location.protocol}//${location.hostname}:8000`;
+    return (window as any)['__API_URL__'] || 'http://localhost:8000';
   }
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
@@ -36,7 +36,7 @@ export class AuthService {
       is_admin: role === 'admin',
       role
     };
-    localStorage.setItem('user', JSON.stringify(user));
+    sessionStorage.setItem('user', JSON.stringify(user));
     this.currentUserSubject.next(user);
   }
 
@@ -50,13 +50,13 @@ export class AuthService {
   }
 
   logout(): void {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     this.currentUserSubject.next(null);
   }
 
   getToken(): string | null {
-    return localStorage.getItem('token');
+    return sessionStorage.getItem('token');
   }
 
   isAuthenticated(): boolean {
@@ -69,13 +69,15 @@ export class AuthService {
   }
 
   private setToken(token: string): void {
-    localStorage.setItem('token', token);
+    sessionStorage.setItem('token', token);
   }
 
   private loadUserFromStorage(): void {
-    const userStr = localStorage.getItem('user');
+    const userStr = sessionStorage.getItem('user');
     if (userStr) {
-      this.currentUserSubject.next(JSON.parse(userStr));
+      try {
+        this.currentUserSubject.next(JSON.parse(userStr));
+      } catch { sessionStorage.removeItem('user'); }
     }
   }
 }

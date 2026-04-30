@@ -172,8 +172,8 @@ export class LoginComponent {
       error: () => {
         this.loading = false;
         const user = { id: Math.floor(Math.random() * 9000) + 1000, email, is_admin: role === 'admin', role };
-        localStorage.setItem('token', 'demo-token');
-        localStorage.setItem('user', JSON.stringify(user));
+        sessionStorage.setItem('token', 'demo-token');
+        sessionStorage.setItem('user', JSON.stringify(user));
         (this.authService as any).currentUserSubject.next(user);
         this.router.navigate([redirect]);
         this.snackBar.open(`Signed in as ${role}`, 'Close', { duration: 3000 });
