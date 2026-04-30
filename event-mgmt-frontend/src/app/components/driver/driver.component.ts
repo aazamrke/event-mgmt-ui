@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
@@ -219,8 +219,8 @@ import { User } from '../../models';
     </div>
 
     <!-- AI Chatbot Popup -->
-    <div class="chat-backdrop" *ngIf="showChatbot" (click)="showChatbot=false">
-      <div class="chatbot-popup" (click)="$event.stopPropagation()">
+    <div class="chat-backdrop" *ngIf="showChatbot">
+      <div class="chatbot-popup">
 
         <!-- Chat header -->
         <div class="cb-header">
@@ -247,11 +247,13 @@ import { User } from '../../models';
 
         <!-- Voice orb -->
         <div class="cb-voice-section">
-          <div class="voice-orb" [class.listening]="cbListening" [class.speaking]="cbSpeaking" (click)="toggleCbVoice()">
-            <mat-icon>{{cbSpeaking ? 'volume_up' : cbListening ? 'mic' : 'mic_none'}}</mat-icon>
+          <div class="voice-orb" [class.listening]="cbListening" [class.speaking]="cbSpeaking" (click)="cbSpeaking ? stopCbSpeechPublic() : toggleCbVoice()">
+            <mat-icon>{{cbSpeaking ? 'stop' : cbListening ? 'mic' : 'mic_none'}}</mat-icon>
             <div class="orb-ring"></div>
           </div>
-          <div class="voice-label">{{cbSpeaking ? 'Speaking...' : cbListening ? 'Listening — speak now' : 'Tap to speak'}}</div>
+          <div class="voice-label">
+            {{cbSpeaking ? 'Tap to stop speaking' : cbListening ? 'Listening — speak now' : 'Tap to speak'}}
+          </div>
           <div class="cb-transcript" *ngIf="cbLiveTranscript">{{cbLiveTranscript}}</div>
         </div>
 
@@ -457,8 +459,11 @@ import { User } from '../../models';
 
         <!-- Follow-up input -->
         <div class="ai-input-bar" *ngIf="!stepsLoading || aiConversation.length > 0">
-          <div class="ai-voice-orb" [class.listening]="aiListening" (click)="toggleAiVoice()">
-            <mat-icon>{{aiListening ? 'mic' : 'mic_none'}}</mat-icon>
+          <div class="ai-voice-orb" [class.listening]="aiListening"
+               [style.background]="aiSpeaking ? '#ea4335' : ''"
+               (click)="aiSpeaking ? stopAiSpeech() : toggleAiVoice()"
+               [matTooltip]="aiSpeaking ? 'Stop speaking' : aiListening ? 'Stop listening' : 'Speak'">
+            <mat-icon>{{aiSpeaking ? 'stop' : aiListening ? 'mic' : 'mic_none'}}</mat-icon>
           </div>
           <input class="ai-input" [(ngModel)]="aiInput" (keyup.enter)="aiSend(aiInput)"
                  placeholder="Or type a follow-up...">
@@ -1148,6 +1153,10 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     try { this.cbRecognition?.stop(); } catch {}
   }
 
+  stopCbSpeechPublic(): void {
+    this.stopCbSpeech();
+  }
+
   private stopCbSpeech(): void {
     this.cbSpeaking = false;
     window.speechSynthesis?.cancel();
@@ -1156,17 +1165,51 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   private speakReply(text: string): void {
     if (!window.speechSynthesis) return;
     this.stopCbSpeech();
-    const utt = new SpeechSynthesisUtterance(text);
+
+    // Clean up text for natural speech
+    const cleaned = text
+      .replace(/\d+\)/g, '')           // remove "1)" "2)" list markers
+      .replace(/sudo\s+\S+/g, match => match.replace(/[-_]/g, ' ')) // make commands speakable
+      .replace(/https?:\/\/\S+/g, 'the link')  // replace URLs
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    const utt = new SpeechSynthesisUtterance(cleaned);
     utt.lang = 'en-US';
-    utt.rate = 1.0;
-    utt.onstart = () => { this.cbSpeaking = true; };
-    utt.onend = () => {
+    utt.rate = 0.92;    // slightly slower = more natural
+    utt.pitch = 1.05;   // slightly higher = warmer
+    utt.volume = 1.0;
+
+    // Pick the best available natural voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = [
+      'Google US English',
+      'Microsoft Aria Online (Natural)',
+      'Microsoft Jenny Online (Natural)',
+      'Samantha',
+      'Karen',
+      'Moira'
+    ];
+    const picked =
+      preferred.reduce((found: SpeechSynthesisVoice | null, name) =>
+        found || voices.find(v => v.name === name) || null, null) ||
+      voices.find(v => v.lang === 'en-US' && !v.localService) ||
+      voices.find(v => v.lang === 'en-US') ||
+      voices.find(v => v.lang.startsWith('en')) ||
+      null;
+
+    if (picked) utt.voice = picked;
+
+    utt.onstart = () => this.zone.run(() => { this.cbSpeaking = true; });
+    utt.onend = () => this.zone.run(() => {
       this.cbSpeaking = false;
-      // Auto-restart listening after speaking
-      setTimeout(() => { if (this.showChatbot) this.startCbVoice(); }, 300);
-    };
-    utt.onerror = () => { this.cbSpeaking = false; };
-    window.speechSynthesis.speak(utt);
+      setTimeout(() => { if (this.showChatbot) this.startCbVoice(); }, 400);
+    });
+    utt.onerror = () => this.zone.run(() => { this.cbSpeaking = false; });
+
+    // Workaround for Chrome bug where speech freezes after ~15s
+    window.speechSynthesis.cancel();
+    setTimeout(() => window.speechSynthesis.speak(utt), 50);
   }
 
   cbSendText(text: string): void {
@@ -1240,6 +1283,7 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   aiConversation: { role: 'user'|'agent'; text: string; time: Date }[] = [];
   aiInput = '';
   aiListening = false;
+  aiSpeaking = false;
   private aiRecognition: any = null;
   ticket = { title: '', priority: 'medium', description: '' };
   createdTicketId = '';
@@ -1377,7 +1421,7 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     ]
   };
 
-  constructor(private snackBar: MatSnackBar, private authService: AuthService, private ticketService: TicketService, private router: Router, private kbService: KnowledgeBaseService) {}
+  constructor(private snackBar: MatSnackBar, private authService: AuthService, private ticketService: TicketService, private router: Router, private kbService: KnowledgeBaseService, private zone: NgZone) {}
 
   ngAfterViewChecked(): void {
     if (this.cbShouldScroll && this.cbContainer) {
@@ -1622,16 +1666,42 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     } else { doStart(); }
   }
 
+  stopAiSpeech(): void {
+    this.aiSpeaking = false;
+    window.speechSynthesis?.cancel();
+  }
+
   private speakAndListen(text: string): void {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(text);
+
+    const cleaned = text
+      .replace(/\d+\)/g, '')
+      .replace(/https?:\/\/\S+/g, 'the link')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    const utt = new SpeechSynthesisUtterance(cleaned);
     utt.lang = 'en-US';
-    utt.rate = 1.0;
-    utt.onend = () => {
-      if (this.showStepsModal) setTimeout(() => this.toggleAiVoice(), 300);
-    };
-    window.speechSynthesis.speak(utt);
+    utt.rate = 0.92;
+    utt.pitch = 1.05;
+    utt.volume = 1.0;
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = ['Google US English', 'Microsoft Aria Online (Natural)', 'Microsoft Jenny Online (Natural)', 'Samantha', 'Karen'];
+    const picked =
+      preferred.reduce((f: SpeechSynthesisVoice | null, n) => f || voices.find(v => v.name === n) || null, null) ||
+      voices.find(v => v.lang === 'en-US' && !v.localService) ||
+      voices.find(v => v.lang === 'en-US') || null;
+    if (picked) utt.voice = picked;
+
+    utt.onstart = () => this.zone.run(() => { this.aiSpeaking = true; });
+    utt.onend = () => this.zone.run(() => {
+      this.aiSpeaking = false;
+      if (this.showStepsModal) setTimeout(() => this.toggleAiVoice(), 400);
+    });
+    utt.onerror = () => this.zone.run(() => { this.aiSpeaking = false; });
+    setTimeout(() => window.speechSynthesis.speak(utt), 50);
   }
 
   stepNotHelped(): void {
@@ -1677,6 +1747,7 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     this.issueResolved = false;
     this.isListening = false;
     this.aiListening = false;
+    this.aiSpeaking = false;
     try { this.recognition?.stop(); } catch {}
     try { this.aiRecognition?.stop(); } catch {}
     window.speechSynthesis?.cancel();
