@@ -88,8 +88,8 @@ import { User } from '../../models';
           </div>
         </div>
         <div class="welcome-actions">
-          <button class="wa-btn primary" (click)="openChatbot()">
-            <mat-icon>support_agent</mat-icon> Get AI Help
+          <button class="wa-btn primary" (click)="closeChatbot(); showModal=true">
+            <mat-icon>confirmation_number</mat-icon> Raise a Ticket
           </button>
           <button class="wa-btn outline" (click)="openChatbot()">
             <mat-icon>add_alert</mat-icon> Report Issue
@@ -121,13 +121,32 @@ import { User } from '../../models';
             </div>
 
             <!-- Quick Status card -->
-            <div class="qa-card" (click)="activePanel='vehicle'">
+            <div class="qa-card" (click)="showStatusPopup=true">
               <div class="qa-icon" style="background:#e8f0fe">
                 <mat-icon style="color:#1a73e8">speed</mat-icon>
               </div>
               <div class="qa-body">
                 <div class="qa-title">Quick Status</div>
-                <div class="qa-desc">View vehicle health, fuel level, engine temp and current speed.</div>
+                <div class="qa-stats">
+                  <div class="qa-stat">
+                    <span class="material-icons qs-icon" style="color:#1a73e8">speed</span>
+                    <span class="qs-val">{{trip?.speedKmh ?? 0}} km/h</span>
+                  </div>
+                  <div class="qa-stat">
+                    <span class="material-icons qs-icon"
+                      [style.color]="(trip?.fuelLevel ?? 0) < 20 ? '#ea4335' : '#34a853'">local_gas_station</span>
+                    <span class="qs-val" [style.color]="(trip?.fuelLevel ?? 0) < 20 ? '#ea4335' : '#202124'">{{trip?.fuelLevel ?? 0}}%</span>
+                  </div>
+                  <div class="qa-stat">
+                    <span class="material-icons qs-icon"
+                      [style.color]="(trip?.engineTemp ?? 0) > 100 ? '#ea4335' : '#fbbc04'">thermostat</span>
+                    <span class="qs-val" [style.color]="(trip?.engineTemp ?? 0) > 100 ? '#ea4335' : '#202124'">{{trip?.engineTemp ?? 0}}°C</span>
+                  </div>
+                  <div class="qa-stat">
+                    <span class="material-icons qs-icon" style="color:#9334e6">route</span>
+                    <span class="qs-val">{{trip?.completedStops ?? 0}}/{{trip?.totalStops ?? 0}} stops</span>
+                  </div>
+                </div>
               </div>
               <mat-icon class="qa-arrow">arrow_forward</mat-icon>
             </div>
@@ -201,19 +220,6 @@ import { User } from '../../models';
           (sendMessage)="handleUserMessage($event)"
           (actionClicked)="handleAction($event)">
         </app-driver-chat>
-
-        <app-driver-right-panel
-          class="right-area"
-          [trip]="trip"
-          [incidents]="incidents"
-          [activeTab]="activePanel"
-          (completeStop)="handleCompleteStop($event)"
-          (skipStop)="handleSkipStop($event)"
-          (reportIncident)="reportIncident()"
-          (acknowledgeIncident)="handleAcknowledge($event)"
-          (resolveIncident)="handleResolve($event)"
-          (refreshVehicle)="refreshTrip()">
-        </app-driver-right-panel>
       </div>
 
     </div>
@@ -371,8 +377,8 @@ import { User } from '../../models';
           <div class="step active"><span class="step-num">3</span> Describe</div>
         </div>
         <div class="input-tabs">
-          <button class="itab" [class.active]="describeTab==='text'" (click)="describeTab='text'"><span class="material-icons">edit_note</span> Type</button>
           <button class="itab" [class.active]="describeTab==='voice'" (click)="switchToVoice()"><span class="material-icons">mic</span> Voice</button>
+          <button class="itab" [class.active]="describeTab==='text'" (click)="describeTab='text'"><span class="material-icons">edit_note</span> Type</button>
           <button class="itab" [class.active]="describeTab==='image'" (click)="describeTab='image'"><span class="material-icons">add_photo_alternate</span> Image</button>
         </div>
         <div *ngIf="describeTab==='text'" class="describe-body">
@@ -542,7 +548,101 @@ import { User } from '../../models';
       </div>
     </div>
 
-    <!-- Ticket Success -->
+    <!-- Quick Status Popup -->
+    <div class="modal-backdrop" *ngIf="showStatusPopup" (click)="showStatusPopup=false">
+      <div class="modal-box status-popup" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+          <div class="modal-title"><span class="material-icons" style="color:#1a73e8">speed</span> Vehicle Status</div>
+          <button class="close-btn" (click)="showStatusPopup=false"><span class="material-icons">close</span></button>
+        </div>
+
+        <div class="status-popup-grid">
+          <!-- Vehicle ID -->
+          <div class="sp-card">
+            <div class="sp-icon" style="background:#e8f0fe"><span class="material-icons" style="color:#1a73e8">badge</span></div>
+            <div class="sp-body">
+              <div class="sp-label">Vehicle ID</div>
+              <div class="sp-val mono">{{trip?.vehicleId}}</div>
+            </div>
+          </div>
+          <!-- Driver -->
+          <div class="sp-card">
+            <div class="sp-icon" style="background:#e8f0fe"><span class="material-icons" style="color:#1a73e8">person</span></div>
+            <div class="sp-body">
+              <div class="sp-label">Driver</div>
+              <div class="sp-val">{{trip?.driverName}}</div>
+            </div>
+          </div>
+          <!-- Speed -->
+          <div class="sp-card">
+            <div class="sp-icon" style="background:#e8f0fe"><span class="material-icons" style="color:#1a73e8">speed</span></div>
+            <div class="sp-body">
+              <div class="sp-label">Speed</div>
+              <div class="sp-val" [style.color]="(trip?.speedKmh??0)>100?'#ea4335':(trip?.speedKmh??0)>80?'#fbbc04':'#34a853'">{{trip?.speedKmh}} km/h</div>
+            </div>
+          </div>
+          <!-- Fuel -->
+          <div class="sp-card">
+            <div class="sp-icon" [style.background]="(trip?.fuelLevel??0)<20?'#fce8e6':'#e6f4ea'">
+              <span class="material-icons" [style.color]="(trip?.fuelLevel??0)<20?'#ea4335':'#34a853'">local_gas_station</span>
+            </div>
+            <div class="sp-body">
+              <div class="sp-label">Fuel Level</div>
+              <div class="sp-val" [style.color]="(trip?.fuelLevel??0)<20?'#ea4335':'#34a853'">{{trip?.fuelLevel}}%</div>
+              <div class="sp-bar"><div class="sp-fill" [style.width.%]="trip?.fuelLevel" [style.background]="(trip?.fuelLevel??0)<20?'#ea4335':'#34a853'"></div></div>
+            </div>
+          </div>
+          <!-- Engine Temp -->
+          <div class="sp-card">
+            <div class="sp-icon" [style.background]="(trip?.engineTemp??0)>100?'#fce8e6':'#fef7e0'">
+              <span class="material-icons" [style.color]="(trip?.engineTemp??0)>100?'#ea4335':'#fbbc04'">thermostat</span>
+            </div>
+            <div class="sp-body">
+              <div class="sp-label">Engine Temp</div>
+              <div class="sp-val" [style.color]="(trip?.engineTemp??0)>100?'#ea4335':'#202124'">{{trip?.engineTemp}}°C</div>
+              <div class="sp-bar"><div class="sp-fill" [style.width.%]="((trip?.engineTemp??0)/150)*100" [style.background]="(trip?.engineTemp??0)>100?'#ea4335':'#fbbc04'"></div></div>
+            </div>
+          </div>
+          <!-- Trip Progress -->
+          <div class="sp-card">
+            <div class="sp-icon" style="background:#f3e8fd"><span class="material-icons" style="color:#9334e6">route</span></div>
+            <div class="sp-body">
+              <div class="sp-label">Trip Progress</div>
+              <div class="sp-val">{{trip?.completedStops}}/{{trip?.totalStops}} stops</div>
+              <div class="sp-bar"><div class="sp-fill" [style.width.%]="((trip?.completedStops??0)/(trip?.totalStops??1))*100" style="background:#9334e6"></div></div>
+            </div>
+          </div>
+          <!-- Distance -->
+          <div class="sp-card">
+            <div class="sp-icon" style="background:#e6f4ea"><span class="material-icons" style="color:#34a853">straighten</span></div>
+            <div class="sp-body">
+              <div class="sp-label">Distance</div>
+              <div class="sp-val">{{trip?.distanceKm}} km</div>
+            </div>
+          </div>
+          <!-- Trip Status -->
+          <div class="sp-card">
+            <div class="sp-icon" style="background:#e8f0fe"><span class="material-icons" style="color:#1a73e8">info</span></div>
+            <div class="sp-body">
+              <div class="sp-label">Trip Status</div>
+              <div class="sp-val">{{tripStatusLabel}}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Next Stop -->
+        <div class="sp-next" *ngIf="trip">
+          <div class="sp-next-label"><span class="material-icons">location_on</span> Next Stop</div>
+          <ng-container *ngIf="trip.stops | slice:0 as stops">
+            <div class="sp-next-addr" *ngIf="trip.stops[1] as next">{{next.address}} &mdash; ETA {{next.eta}}</div>
+          </ng-container>
+        </div>
+
+        <div class="form-actions" style="margin-top:16px">
+          <button class="btn-primary" (click)="showStatusPopup=false"><span class="material-icons">check</span> Close</button>
+        </div>
+      </div>
+    </div>
     <div class="modal-backdrop" *ngIf="showTicketSuccess" (click)="$event.stopPropagation()">
       <div class="modal-box success-box" (click)="$event.stopPropagation()">
         <span class="material-icons success-icon">check_circle</span>
@@ -686,13 +786,19 @@ import { User } from '../../models';
     .qa-icon { width:44px; height:44px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
     .qa-icon mat-icon { font-size:24px; }
     .qa-body { flex:1; }
-    .qa-title { font-size:14px; font-weight:600; color:#202124; margin-bottom:3px; }
+    .qa-title { font-size:14px; font-weight:600; color:#202124; margin-bottom:6px; }
     .qa-desc  { font-size:12px; color:#5f6368; line-height:1.4; }
+    .qa-stats { display:flex; flex-wrap:wrap; gap:6px 14px; }
+    .qa-stat  { display:flex; align-items:center; gap:4px; }
+    .qs-icon  { font-size:14px !important; color:#5f6368; }
+    .qs-val   { font-size:12px; font-weight:400; color:#5f6368; }
     .qa-arrow { font-size:18px !important; color:#dadce0; transition:color 0.15s; flex-shrink:0; }
     .qa-card:hover .qa-arrow { color:#1a73e8; }
 
     /* Support Info */
-    .mid-right { display:flex; flex-direction:column; gap:10px; }
+    .mid-right { display:flex; flex-direction:column; gap:10px; max-height:320px; overflow-y:auto; padding-right:4px; }
+    .mid-right::-webkit-scrollbar { width:4px; }
+    .mid-right::-webkit-scrollbar-thumb { background:#dadce0; border-radius:2px; }
     .sup-card { background:#fff; border:1px solid #dadce0; border-radius:10px; padding:14px 16px; box-shadow:0 1px 3px rgba(60,64,67,.08); }
     .sup-card-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
     .sup-icon { width:32px; height:32px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
@@ -718,11 +824,11 @@ import { User } from '../../models';
 
     /* ── Content ── */
     .content-area {
-      flex:1; display:grid; grid-template-columns:1fr 400px;
+      flex:1; display:grid; grid-template-columns:1fr;
       overflow:hidden; min-height:0;
     }
     .chat-area  { overflow:hidden; border-right:1px solid #dadce0; }
-    .right-area { overflow:hidden; }
+    .right-area { display:none; }
 
     @media (max-width:1024px) {
       .content-area { grid-template-columns:1fr; }
@@ -1002,6 +1108,22 @@ import { User } from '../../models';
     .success-sub { font-size:13px; color:#80868b; margin-bottom:24px !important; }
     .success-box p strong { color:#202124; }
     .success-actions { display:flex; justify-content:center; gap:10px; }
+    /* Status Popup */
+    .status-popup { width:520px; }
+    .status-popup-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+    .sp-card { display:flex; align-items:center; gap:12px; background:#f8f9fa; border:1px solid #dadce0; border-radius:8px; padding:12px; }
+    .sp-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .sp-icon .material-icons { font-size:20px; }
+    .sp-body { flex:1; }
+    .sp-label { font-size:11px; color:#5f6368; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:2px; }
+    .sp-val { font-size:15px; font-weight:600; color:#202124; }
+    .sp-val.mono { font-family:'Roboto Mono',monospace; font-size:13px; }
+    .sp-bar { height:4px; background:#e8eaed; border-radius:2px; overflow:hidden; margin-top:4px; }
+    .sp-fill { height:100%; border-radius:2px; transition:width 0.4s ease; }
+    .sp-next { background:#e8f0fe; border-radius:8px; padding:12px 14px; }
+    .sp-next-label { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#1a73e8; margin-bottom:4px; }
+    .sp-next-label .material-icons { font-size:16px; }
+    .sp-next-addr { font-size:13px; color:#202124; font-weight:500; }
   `]
 })
 export class DriverComponent implements OnInit, AfterViewChecked {
@@ -1025,6 +1147,7 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   cbLiveTranscript = '';
   private cbRecognition: any = null;
   private cbSynthesis: SpeechSynthesisUtterance | null = null;
+  showStatusPopup = false;
   showModal         = false;
   showDetailsModal  = false;
   showDescribeModal = false;
@@ -1053,10 +1176,26 @@ export class DriverComponent implements OnInit, AfterViewChecked {
   openChatbot(): void {
     this.showChatbot = true;
     this.cbShouldScroll = true;
-    this.cbMessages = [{ role: 'agent', text: 'Hi! I\'m your Driver AI Assistant. Describe your issue by voice or text and I\'ll help you troubleshoot it right away.', time: new Date() }];
+    const name = this.trip?.driverName || this.userName;
+    const vehicle = this.trip?.vehicleId || 'N/A';
+    const location = this.trip?.stops.find(s => s.status === 'arrived')?.address
+      || this.trip?.stops.find(s => s.status === 'pending')?.address
+      || this.mockLocation.address;
+    const status = this.tripStatusLabel;
+    const fuel = this.trip?.fuelLevel ?? 0;
+    const speed = this.trip?.speedKmh ?? 0;
+    const greeting =
+      `Hi ${name}! 👋 I can see you're currently ${status.toLowerCase()} in vehicle ${vehicle}. ` +
+      `Your location is near ${location}. ` +
+      `Fuel: ${fuel}% | Speed: ${speed} km/h. ` +
+      `How can I help you today? Describe your issue or ask me anything.`;
+    this.cbMessages = [{ role: 'agent', text: greeting, time: new Date() }];
     this.cbInput = '';
     this.cbLiveTranscript = '';
-    setTimeout(() => this.startCbVoice(), 400);
+    setTimeout(() => {
+      this.speakReply(greeting);
+      this.cbShouldScroll = true;
+    }, 300);
   }
 
   closeChatbot(): void {
@@ -1205,7 +1344,10 @@ export class DriverComponent implements OnInit, AfterViewChecked {
       this.cbSpeaking = false;
       setTimeout(() => { if (this.showChatbot) this.startCbVoice(); }, 400);
     });
-    utt.onerror = () => this.zone.run(() => { this.cbSpeaking = false; });
+    utt.onerror = () => this.zone.run(() => {
+      this.cbSpeaking = false;
+      setTimeout(() => { if (this.showChatbot) this.startCbVoice(); }, 400);
+    });
 
     // Workaround for Chrome bug where speech freezes after ~15s
     window.speechSynthesis.cancel();
@@ -1622,7 +1764,8 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     this.issueDescription = '';
     this.voiceTranscript = '';
     this.uploadedImages = [];
-    this.describeTab = 'text';
+    this.describeTab = 'voice';
+    setTimeout(() => this.startVoice(), 400);
   }
 
   submitIssue(): void {
@@ -1814,7 +1957,7 @@ export class DriverComponent implements OnInit, AfterViewChecked {
 
   switchToVoice(): void {
     this.describeTab = 'voice';
-    setTimeout(() => this.startVoice(), 300);
+    if (!this.isListening) setTimeout(() => this.startVoice(), 300);
   }
 
   startVoice(): void {
@@ -1844,18 +1987,22 @@ export class DriverComponent implements OnInit, AfterViewChecked {
           this.voiceTranscript = finalText || interim;
         };
         rec.onerror = (e: any) => {
-          this.isListening = false;
-          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            alert('Microphone blocked.\nOn Linux server run Chromium with:\n--use-fake-ui-for-media-stream\nor access via HTTPS.');
-          }
+          this.zone.run(() => {
+            this.isListening = false;
+            if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+              alert('Microphone blocked.\nOn Linux server run Chromium with:\n--use-fake-ui-for-media-stream\nor access via HTTPS.');
+            }
+          });
         };
         rec.onend = () => {
-          this.isListening = false;
-          if (finalText.trim()) this.voiceTranscript = finalText.trim();
+          this.zone.run(() => {
+            this.isListening = false;
+            if (finalText.trim()) this.voiceTranscript = finalText.trim();
+          });
         };
         rec.start();
         this.recognition = rec;
-        this.isListening = true;
+        this.zone.run(() => { this.isListening = true; });
       } catch (err) {
         this.isListening = false;
         console.warn('Voice start failed:', err);
@@ -1876,9 +2023,8 @@ export class DriverComponent implements OnInit, AfterViewChecked {
     } else {
       doStart();
     }
-    this.isListening = false; // set first so onend doesn't restart
-    try { this.recognition?.stop(); } catch {}
   }
+
   stopVoice(): void {
     this.isListening = false;
     try { this.recognition?.stop(); } catch {}
