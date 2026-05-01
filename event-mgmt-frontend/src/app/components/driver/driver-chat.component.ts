@@ -23,12 +23,9 @@ import { DriverMessage } from './driver.models';
             <span class="online-dot"></span>
           </div>
           <div>
-            <div class="agent-name">Driver AI Assistant</div>
+            <div class="agent-name">Techwiz AI Assistant</div>
             <div class="agent-status">{{ isTyping ? 'Typing...' : 'Online · Ready to help' }}</div>
           </div>
-        </div>
-        <div class="g-logo">
-          <span class="g-blue">G</span><span class="g-red">o</span><span class="g-yellow">o</span><span class="g-blue">g</span><span class="g-green">l</span><span class="g-red">e</span>
         </div>
       </div>
 
@@ -70,16 +67,11 @@ import { DriverMessage } from './driver.models';
         </ng-container>
       </div>
 
-      <!-- Input bar -->
+      <!-- Footer -->
       <div class="input-bar">
-        <div class="input-wrap">
-          <mat-icon class="input-icon">search</mat-icon>
-          <input class="msg-input" [(ngModel)]="userInput" (keyup.enter)="send()"
-                 placeholder="Ask the driver assistant...">
-          <button class="send-btn" (click)="send()" [disabled]="!userInput.trim()" matTooltip="Send">
-            <mat-icon>send</mat-icon>
-          </button>
-        </div>
+        <span class="g-logo">
+          <span style="color:#4285f4">G</span><span style="color:#ea4335">o</span><span style="color:#fbbc04">o</span><span style="color:#4285f4">g</span><span style="color:#34a853">l</span><span style="color:#ea4335">e</span>
+        </span>
       </div>
     </div>
   `,
@@ -113,10 +105,6 @@ import { DriverMessage } from './driver.models';
 
     /* Google logo text */
     .g-logo { font-size:18px; font-weight:700; letter-spacing:-0.5px; }
-    .g-blue   { color:#4285f4; }
-    .g-red    { color:#ea4335; }
-    .g-yellow { color:#fbbc04; }
-    .g-green  { color:#34a853; }
 
     /* Messages */
     .messages-area {
@@ -191,38 +179,11 @@ import { DriverMessage } from './driver.models';
     }
     .system-msg mat-icon { font-size:14px; width:14px; height:14px; color:#fbbc04; }
 
-    /* Input bar — Google Search style */
     .input-bar {
-      padding:12px 20px 16px; background:#f8f9fa;
+      padding:8px 16px; background:#f8f9fa;
       border-top:1px solid #dadce0; flex-shrink:0;
+      display:flex; justify-content:flex-end; align-items:center;
     }
-    .input-wrap {
-      display:flex; align-items:center; gap:8px;
-      background:#fff; border:1px solid #dadce0;
-      border-radius:24px; padding:8px 16px;
-      box-shadow:0 1px 6px rgba(32,33,36,.1);
-      transition:box-shadow 0.2s, border-color 0.2s;
-    }
-    .input-wrap:focus-within {
-      box-shadow:0 1px 6px rgba(32,33,36,.28);
-      border-color:#1a73e8;
-    }
-    .input-icon { color:#9aa0a6; font-size:20px; flex-shrink:0; }
-    .msg-input {
-      flex:1; border:none; outline:none; background:transparent;
-      color:#202124; font-size:14px; font-family:inherit;
-    }
-    .msg-input::placeholder { color:#9aa0a6; }
-    .send-btn {
-      width:36px; height:36px; border-radius:50%; border:none;
-      background:#1a73e8; color:#fff; cursor:pointer;
-      display:flex; align-items:center; justify-content:center;
-      transition:background 0.15s, box-shadow 0.15s;
-      flex-shrink:0;
-    }
-    .send-btn:hover { background:#1557b0; box-shadow:0 1px 3px rgba(0,0,0,.2); }
-    .send-btn:disabled { background:#dadce0; color:#9aa0a6; cursor:not-allowed; }
-    .send-btn mat-icon { font-size:18px; width:18px; height:18px; }
   `]
 })
 export class DriverChatComponent implements AfterViewChecked {
